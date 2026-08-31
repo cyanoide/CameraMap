@@ -2,92 +2,384 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>📍 Camera Map Cyanoïde</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📍 Camera Map // Cyanoïde</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📍</text></svg>">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #111; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        /* UI Panel */
-        #ui-panel {
-            position: absolute; top: 20px; left: 20px; width: 370px; /* Un peu plus large pour les boutons */
-            background: rgba(18, 18, 24, 0.98); color: #eee;
-            padding: 20px; border-radius: 12px;
-            backdrop-filter: blur(15px); z-index: 20000;
-            max-height: 92vh; overflow-y: auto;
-            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-            font-size: 13px;
+        /* ============================================================
+           CYANOÏDE // DESIGN SYSTEM
+           Aligné sur cyanoide.github.io — HUD / terminal / cyberpunk
+           ============================================================ */
+        :root {
+            --font-main: 'Rajdhani', 'Segoe UI', sans-serif;
+            --font-mono: 'Share Tech Mono', ui-monospace, monospace;
         }
-        #ui-panel::-webkit-scrollbar { width: 6px; }
-        #ui-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-        
-        h2 { margin: 0 0 15px 0; font-size: 20px; color: white; display: flex; justify-content: space-between; align-items: center;}
-        h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; margin: 25px 0 10px 0; color: #00d2ff; border-bottom: 1px solid #333; padding-bottom: 4px; font-weight: 700;}
 
-        .control-group { margin-bottom: 15px; }
-        input[type="text"], input[type="file"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #333; background: #222; color: white; box-sizing: border-box; outline: none; margin-bottom: 5px; }
-        input[type="text"]:focus { border-color: #00d2ff; }
+        /* --- THÈME JOUR (défaut) --- */
+        body.theme-light {
+            --bg: #f5f5f0;
+            --bg-panel: rgba(240, 240, 235, 0.60);
+            --bg-field: rgba(255, 255, 255, 0.55);
+            --text: #0a0a0a;
+            --accent: #0000FF;
+            --accent-alt: #2222cc;
+            --accent-glow: rgba(0, 0, 255, 0.15);
+            --border: rgba(0, 0, 255, 0.25);
+            --border-strong: rgba(0, 0, 255, 0.5);
+            --muted: #7a7a80;
+            --item-hover: rgba(0, 0, 255, 0.08);
+            --item-selected: rgba(0, 0, 255, 0.14);
+            --grid-color: rgba(0, 0, 255, 0.05);
+            --vignette: rgba(0, 0, 0, 0.15);
+            --danger: #d92b3f;
+            --ok: #1f9d55;
+        }
 
+        /* --- THÈME NUIT --- */
+        body.theme-dark {
+            --bg: #0a0a0a;
+            --bg-panel: rgba(12, 12, 12, 0.58);
+            --bg-field: rgba(0, 0, 0, 0.4);
+            --text: #e8e8e0;
+            --accent: #FFFF00;
+            --accent-alt: #cccc00;
+            --accent-glow: rgba(255, 255, 0, 0.14);
+            --border: rgba(255, 255, 0, 0.25);
+            --border-strong: rgba(255, 255, 0, 0.55);
+            --muted: #888880;
+            --item-hover: rgba(255, 255, 0, 0.07);
+            --item-selected: rgba(255, 255, 0, 0.13);
+            --grid-color: rgba(255, 255, 0, 0.035);
+            --vignette: rgba(0, 0, 0, 0.45);
+            --danger: #ff4757;
+            --ok: #2ecc71;
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-main);
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #map { position: absolute; inset: 0; width: 100%; }
+
+        /* --- GRILLE DE FOND (au-dessus de la carte, sous l'UI) --- */
+        #bg-grid {
+            position: absolute; inset: 0; z-index: 5;
+            pointer-events: none;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* --- OVERLAYS HUD (scanlines + vignette) --- */
+        #overlay-scanlines {
+            position: absolute; inset: 0; z-index: 6; pointer-events: none;
+            background: repeating-linear-gradient(0deg,
+                transparent, transparent 2px,
+                rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+        }
+        #overlay-vignette {
+            position: absolute; inset: 0; z-index: 6; pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 55%, var(--vignette) 100%);
+        }
+        /* Toggle effet CRT (scanlines + vignette) */
+        body.no-crt #overlay-scanlines,
+        body.no-crt #overlay-vignette { display: none; }
+
+        /* ============================================================
+           PANNEAU DE CONTRÔLE
+           ============================================================ */
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px; width: 372px;
+            background: var(--bg-panel);
+            color: var(--text);
+            padding: 22px 20px 24px;
+            border: 1px solid var(--border);
+            border-left: 2px solid var(--accent);
+            border-radius: 2px;
+            backdrop-filter: blur(14px) saturate(1.3);
+            -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            z-index: 20000;
+            max-height: 92vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.02);
+            font-size: 13px;
+            transition: background .5s ease, border-color .5s ease, color .5s ease;
+        }
+        #ui-panel::-webkit-scrollbar { width: 3px; }
+        #ui-panel::-webkit-scrollbar-track { background: transparent; }
+        #ui-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+        /* --- EN-TÊTE HUD --- */
+        .panel-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+        .header-line { height: 1px; background: linear-gradient(90deg, var(--accent), transparent); opacity: .45; }
+        .header-title {
+            font-family: var(--font-main); font-size: 24px; font-weight: 600;
+            letter-spacing: 6px; text-transform: uppercase; color: var(--accent);
+            line-height: 1.1;
+        }
+        .cursor-blink { animation: blink .8s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .header-subtitle {
+            font-family: var(--font-mono); font-size: 10px; letter-spacing: 4px;
+            color: var(--muted); text-transform: uppercase;
+        }
+        .header-decorator {
+            font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+            color: var(--accent); opacity: .5; padding: 2px 0;
+        }
+
+        h3 {
+            font-family: var(--font-mono);
+            font-size: 11px; text-transform: uppercase; letter-spacing: 3px;
+            margin: 22px 0 10px; color: var(--accent);
+            border-bottom: 1px solid var(--border); padding-bottom: 5px; font-weight: 400;
+        }
+        h3::before { content: "// "; opacity: .6; }
+
+        .control-group { margin-bottom: 14px; }
+
+        /* --- CHAMPS --- */
+        input[type="text"], input[type="file"] {
+            width: 100%; padding: 8px 10px; border-radius: 2px;
+            border: 1px solid var(--border); background: var(--bg-field);
+            color: var(--text); box-sizing: border-box; outline: none; margin-bottom: 5px;
+            font-family: var(--font-mono); font-size: 12px;
+        }
+        input[type="text"]::placeholder { color: var(--muted); }
+        input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+        /* --- BOUTONS --- */
         .btn-grid { display: flex; gap: 8px; margin-bottom: 5px; }
-        button { flex: 1; padding: 10px; border-radius: 6px; border: none; background: #333; color: white; cursor: pointer; transition: 0.2s; font-weight: 600; font-size: 12px; }
-        button:hover { background: #444; transform: translateY(-1px); }
-        button.primary { background: #00d2ff; color: #000; }
-        button.active { background: #fff; color: #000; box-shadow: 0 0 10px white; }
-        button.record { background: #ff4757; color: white; }
-        button.save { background: #2ecc71; color: #000; }
-        button.load { background: #f1c40f; color: #000; }
+        button {
+            flex: 1; padding: 9px 10px; border-radius: 2px;
+            border: 1px solid var(--border); background: transparent; color: var(--text);
+            cursor: pointer; transition: .15s ease;
+            font-family: var(--font-mono); font-weight: 400; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 1.5px;
+        }
+        button:hover { border-color: var(--accent); background: var(--item-hover); box-shadow: 0 0 12px var(--accent-glow); }
+        button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+        button.primary:hover { filter: brightness(1.1); background: var(--accent); }
+        button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+        button.record { background: var(--danger); color: #fff; border-color: var(--danger); }
+        button.record:hover { background: var(--danger); filter: brightness(1.1); }
+        button.save { color: var(--ok); border-color: var(--ok); }
+        button.save:hover { background: rgba(31,157,85,0.12); border-color: var(--ok); box-shadow: 0 0 12px rgba(31,157,85,0.25); }
+        button.load { color: var(--accent); }
 
         .search-box { display: flex; gap: 5px; margin-bottom: 10px; }
-        .search-box button { flex: 0 0 40px; background: #00d2ff; color: black; }
+        .search-box input { margin-bottom: 0; }
+        .search-box button { flex: 0 0 44px; background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
-        .save-load-area { display: flex; gap: 10px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #333;}
-        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; background: #222; padding: 5px 10px; border-radius: 6px;}
-        input[type="color"] { -webkit-appearance: none; border: none; width: 24px; height: 24px; padding: 0; background: none; cursor: pointer;}
-        input[type="range"] { width: 100px; cursor: pointer; }
+        .save-load-area {
+            display: flex; gap: 10px; margin: 14px 0 16px;
+            padding-bottom: 16px; border-bottom: 1px solid var(--border);
+        }
 
-        /* --- MARQUEURS --- */
+        .color-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 5px; background: var(--bg-field); padding: 6px 10px; border-radius: 2px;
+            border: 1px solid var(--border);
+            font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+        }
+        input[type="color"] { -webkit-appearance: none; appearance: none; border: 1px solid var(--border); width: 26px; height: 20px; padding: 0; background: none; cursor: pointer; border-radius: 1px; }
+        input[type="range"] { width: 110px; cursor: pointer; accent-color: var(--accent); }
+
+        /* ============================================================
+           MARQUEURS (sur la carte)
+           ============================================================ */
         .marker-back-container { width: 0; height: 0; overflow: visible; position: relative; z-index: 1 !important; }
-        .marker-dot { width: 12px; height: 12px; background: #00d2ff; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px #00d2ff; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; }
+        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
         .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; }
         .marker-content-wrapper { will-change: transform; transition: transform 0.1s linear; display: flex; flex-direction: column; align-items: center; }
 
-        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; transition: opacity 0.3s; }
+        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; }
         .marker-image:hover { transform: scale(1.15); z-index: 9999 !important; }
 
-        .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: none; transition: opacity 0.3s; }
-        
+        .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: none; transition: opacity 0.3s; font-family: var(--font-main); }
+
         .hidden { opacity: 0 !important; visibility: hidden; }
         .display-none { display: none !important; }
 
-        /* LISTE ITEMS */
-        .list-item { background: #25252a; margin-bottom: 5px; padding: 8px; border-radius: 6px; border-left: 3px solid #444; display: flex; align-items: center; gap: 5px; }
-        .list-item input { margin: 0; border: none; background: transparent; font-weight: bold; width: 100%; color:#ddd; font-size:12px;}
-        .list-item input:focus { background: #333; color:white; }
-        
-        .action-btns { display: flex; gap: 2px; margin-left: auto; }
-        .mini-btn { padding: 4px 6px; font-size: 12px; cursor: pointer; color: #aaa; background: #333; border-radius: 3px; border:none; display:flex; align-items:center; justify-content:center; min-width: 22px;}
-        .mini-btn:hover { background: #555; color: white; }
-        .del-btn { color: #ff4757; }
-        .del-btn:hover { background: #500; }
-        .toggle-btn.inactive { color: #555; opacity: 0.5; } 
+        /* --- LISTE ITEMS --- */
+        .list-item {
+            background: var(--bg-field); margin-bottom: 5px; padding: 8px;
+            border-radius: 2px; border: 1px solid var(--border); border-left: 2px solid var(--border-strong);
+            display: flex; align-items: center; gap: 5px;
+        }
+        .list-item img { border: 1px solid var(--border); border-radius: 1px; }
+        .list-item input {
+            margin: 0; border: none; background: transparent; font-weight: 600; width: 100%;
+            color: var(--text); font-size: 12px; font-family: var(--font-main); letter-spacing: .5px;
+        }
+        .list-item input:focus { background: var(--item-selected); color: var(--text); }
 
-        #hide-ui-btn { position: absolute; top: 20px; right: 20px; z-index: 20001; padding: 10px 20px; background: rgba(0,0,0,0.5); border: 1px solid white; color: white; cursor: pointer;}
+        .action-btns { display: flex; gap: 2px; margin-left: auto; }
+        .mini-btn {
+            padding: 4px 6px; font-size: 12px; cursor: pointer; color: var(--muted);
+            background: transparent; border: 1px solid var(--border); border-radius: 2px;
+            display: flex; align-items: center; justify-content: center; min-width: 22px; flex: none;
+        }
+        .mini-btn:hover { border-color: var(--accent); color: var(--text); background: var(--item-hover); }
+        .del-btn { color: var(--danger); border-color: rgba(217,43,63,0.4); }
+        .del-btn:hover { background: rgba(217,43,63,0.15); border-color: var(--danger); }
+        .toggle-btn.inactive { color: var(--muted); opacity: 0.4; }
+
+        /* --- CONTRÔLE TAILLE LOGO (par marqueur) --- */
+        .size-row {
+            display: flex; align-items: center; gap: 8px; width: 100%;
+            margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border);
+            font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+        }
+        .size-row input[type="range"] { flex: 1; width: auto; }
+        .size-row .size-val { min-width: 42px; text-align: right; color: var(--text); }
+
+        /* ============================================================
+           FLÈCHES (overlay SVG au-dessus de la carte)
+           ============================================================ */
+        #arrow-overlay {
+            position: absolute; inset: 0; z-index: 15;
+            width: 100%; height: 100%;
+            pointer-events: none; overflow: visible;
+        }
+        #arrow-overlay path.arrow-main { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+        #arrow-overlay path.arrow-echo {
+            fill: none; stroke-linecap: round;
+            animation: arrowEcho 1.8s ease-out infinite;
+        }
+        #arrow-overlay path.arrow-echo.e2 { animation-delay: .6s; }
+        #arrow-overlay path.arrow-echo.e3 { animation-delay: 1.2s; }
+        @keyframes arrowEcho {
+            0%   { opacity: .45; stroke-width: 2; }
+            100% { opacity: 0;   stroke-width: 20; }
+        }
+        #arrow-overlay .arrow-head { stroke: none; }
+        #arrow-overlay circle.arrow-mover { filter: drop-shadow(0 0 4px currentColor); }
+
+        /* --- FICHE FLÈCHE (panneau) --- */
+        .arrow-fiche {
+            background: var(--bg-field); margin-bottom: 8px; padding: 9px;
+            border: 1px solid var(--border); border-left: 2px solid var(--border-strong);
+            border-radius: 2px; display: flex; flex-direction: column; gap: 6px;
+        }
+        .arrow-fiche .af-head {
+            display: flex; align-items: center; gap: 6px;
+            font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
+            text-transform: uppercase; color: var(--accent);
+        }
+        .arrow-fiche .af-head .af-title { flex: 1; }
+        .arrow-fiche .af-cols { display: flex; gap: 6px; }
+        .arrow-fiche .af-col { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+        .arrow-fiche label.af-lbl {
+            font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px;
+            text-transform: uppercase; color: var(--muted);
+        }
+        .arrow-fiche select {
+            width: 100%; background: var(--bg-field); color: var(--text);
+            border: 1px solid var(--border); border-radius: 2px; padding: 3px;
+            font-family: var(--font-mono); font-size: 11px; outline: none;
+        }
+        .arrow-fiche select:focus { border-color: var(--accent); }
+        .arrow-fiche select option:checked { background: var(--accent); color: var(--bg); }
+        .arrow-fiche .af-row {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px;
+            text-transform: uppercase; color: var(--muted);
+        }
+        .arrow-fiche .af-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        .arrow-fiche .af-row input[type="range"] { width: 80px; flex: none; }
+        .arrow-fiche .af-row input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+
+        /* ============================================================
+           CHROME HUD (boutons flottants)
+           ============================================================ */
+        .hud-btn {
+            position: absolute; z-index: 20001;
+            padding: 8px 14px; background: var(--bg-panel);
+            border: 1px solid var(--border); border-radius: 2px; color: var(--accent);
+            cursor: pointer; font-family: var(--font-mono); font-size: 11px;
+            letter-spacing: 3px; text-transform: uppercase;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            transition: .2s ease; display: flex; align-items: center; gap: 10px;
+        }
+        .hud-btn:hover { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+
+        #hide-ui-btn { top: 20px; right: 24px; }
+        #theme-toggle { top: 62px; right: 24px; }
+        #crt-toggle { top: 104px; right: 24px; }
+        .hud-btn .track {
+            width: 34px; height: 16px; border: 1px solid var(--accent); border-radius: 2px;
+            position: relative; opacity: .8; flex: none;
+        }
+        .hud-btn .thumb {
+            position: absolute; top: 1px; left: 1px; width: 13px; height: 12px;
+            background: var(--accent); border-radius: 1px; transition: left .25s ease;
+        }
+        body.theme-dark #theme-toggle .thumb { left: 18px; }
+        #crt-toggle .thumb { left: 18px; }
+        body.no-crt #crt-toggle .thumb { left: 1px; }
+
+        .footer-hud {
+            margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        .footer-hud .line { height: 1px; background: linear-gradient(90deg, var(--accent), transparent); opacity: .35; margin-bottom: 4px; }
+        .footer-hud span {
+            font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+            color: var(--muted); text-transform: uppercase;
+        }
+
+        @media (max-width: 640px) {
+            #ui-panel { width: calc(100vw - 40px); max-height: 60vh; }
+        }
     </style>
 </head>
-<body>
+<body class="theme-light">
 
 <div id="map"></div>
-<button id="hide-ui-btn" onclick="toggleUI()">👁️ Interface</button>
+<svg id="arrow-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+<div id="bg-grid"></div>
+<div id="overlay-scanlines"></div>
+<div id="overlay-vignette"></div>
+
+<button id="hide-ui-btn" class="hud-btn" onclick="toggleUI()">◧ Interface</button>
+<button id="theme-toggle" class="hud-btn" onclick="toggleTheme()">
+    <span class="track"><span class="thumb"></span></span>
+    <span id="theme-label">Jour</span>
+</button>
+<button id="crt-toggle" class="hud-btn" onclick="toggleCRT()">
+    <span class="track"><span class="thumb"></span></span>
+    <span>CRT</span>
+</button>
 
 <div id="ui-panel">
+    <div class="panel-header">
+        <div class="header-line"></div>
+        <div class="header-title">CAMERA MAP<span class="cursor-blink">_</span></div>
+        <div class="header-subtitle">GATEWAY // MAPPING</div>
+        <div class="header-line"></div>
+    </div>
+    <div class="header-decorator">[ &#9679; &#9679; &#9679; &#9675; &#9675; &#9675; ]</div>
+
     <div class="save-load-area">
-        <button class="save" onclick="saveProject()">💾 Sauver</button>
-        <button class="load" onclick="document.getElementById('file-input').click()">📂 Ouvrir</button>
+        <button class="save" onclick="saveProject()">&#128190; Sauver</button>
+        <button class="load" onclick="document.getElementById('file-input').click()">&#128193; Ouvrir</button>
         <input type="file" id="file-input" accept=".json" style="display:none" onchange="loadProject(this)">
     </div>
 
@@ -102,18 +394,18 @@
     <div class="control-group">
         <h3>Style et Frontières</h3>
         <div class="btn-grid" style="margin-bottom:8px;">
-            <button id="btn-sat" onclick="switchStyle('satellite')" class="primary">🌍 Satellite</button>
-            <button id="btn-plan" onclick="switchStyle('plan')">📐 Plan 3D</button>
+            <button id="btn-sat" onclick="switchStyle('satellite')" class="primary">&#127757; Satellite</button>
+            <button id="btn-plan" onclick="switchStyle('plan')">&#128208; Plan 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="updateColors()"></div>
             <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="updateColors()"></div>
         </div>
-        
+
         <input type="text" id="country-iso" placeholder="Frontières (ex: FR, CN, US)" value="CN">
-        
+
         <div class="color-row">
-            <span>Couleur</span> 
+            <span>Couleur</span>
             <input type="color" id="border-color" value="#ff0000" oninput="updateBorderColor(this.value)">
         </div>
         <div class="color-row">
@@ -134,40 +426,61 @@
     <div class="control-group">
         <h3>Logos et Textes</h3>
         <div class="btn-grid" style="margin-bottom:10px;">
-            <button onclick="document.getElementById('logo-upload').click()" style="border:1px dashed #666; background:transparent;">+ Ajouter Logo</button>
+            <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
         </div>
         <input type="file" id="logo-upload" accept="image/*" style="display:none;">
         <div id="markers-list" style="margin-top:10px;"></div>
     </div>
 
     <div class="control-group">
+        <h3>Flèches</h3>
+        <div class="btn-grid" style="margin-bottom:10px;">
+            <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
+        </div>
+        <div id="arrows-list"></div>
+    </div>
+
+    <div class="control-group">
         <h3>Vidéo</h3>
         <button class="primary" onclick="addKeyframe()">+ Ajouter Keyframe</button>
         <div id="keyframes-list" style="margin-top:5px;"></div>
-        <div style="margin-top:15px; background:#222; padding:10px; border-radius:8px;">
-            <label style="font-size:10px;">Vitesse</label>
+        <div style="margin-top:15px; background:var(--bg-field); padding:10px; border:1px solid var(--border); border-radius:2px;">
+            <label style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted);">Vitesse</label>
             <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" style="width:100%;">
-            <button class="record" onclick="playScene()" style="margin-top:5px;">▶️ Action</button>
+            <button class="record" onclick="playScene()" style="margin-top:8px;">&#9654; Action</button>
         </div>
+    </div>
+
+    <div class="footer-hud">
+        <div class="line"></div>
+        <span>CLICK LOGO // GLISSER SUR LA CARTE</span>
+        <span id="footer-status">SYS.VER 2.0 &mdash; 0 REP&Egrave;RES</span>
     </div>
 </div>
 
 <script>
     // --- CLÉ API CONFIGURÉE ---
-    mapboxgl.accessToken = 'pk.eyJ1IjoiY3lhbm9pZGUiLCJhIjoiY21pcHVkY2F2MGY5ZzNnczlrbmdpZmE4cCJ9.35yvKuoVzQQrEzGhC2d63Q'; 
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY3lhbm9pZGUiLCJhIjoiY21pcHVkY2F2MGY5ZzNnczlrbmdpZmE4cCJ9.35yvKuoVzQQrEzGhC2d63Q';
     // --------------------------
 
     let currentStyle = 'satellite';
-    let markers = []; 
+    let markers = [];
     let keyframes = [];
+    let arrows = [];
     let pendingImage = null;
     let physicsInterval = null;
-    let borderDashed = false; 
+    let borderDashed = false;
+
+    const DEFAULT_LOGO_SIZE = 80; // px
+    const ARROW_DRAW_MS = 950;    // durée du tracé progressif d'une flèche
+
+    let _idSeq = 0;
+    function nextId() { return 'id_' + Date.now().toString(36) + '_' + (_idSeq++).toString(36); }
 
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [121.47, 31.23], zoom: 6, pitch: 20, projection: 'globe' 
+        center: [121.47, 31.23], zoom: 6, pitch: 20, projection: 'globe'
     });
 
     map.on('style.load', () => {
@@ -183,6 +496,30 @@
         }
         map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
     }
+
+    // --- THEME ---
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('theme-dark');
+        document.body.classList.toggle('theme-light', !dark);
+        document.getElementById('theme-label').innerText = dark ? 'Nuit' : 'Jour';
+        try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
+    }
+    (function initTheme() {
+        let saved = 'light';
+        try { saved = localStorage.getItem('cm-theme') || 'light'; } catch(e) {}
+        if (saved === 'dark') toggleTheme();
+    })();
+
+    // --- EFFET CRT (scanlines + vignette) ---
+    function toggleCRT() {
+        const off = document.body.classList.toggle('no-crt');
+        try { localStorage.setItem('cm-crt', off ? 'off' : 'on'); } catch(e) {}
+    }
+    (function initCRT() {
+        let saved = 'on';
+        try { saved = localStorage.getItem('cm-crt') || 'on'; } catch(e) {}
+        if (saved === 'off') document.body.classList.add('no-crt');
+    })();
 
     // --- NAVIGATION ---
     async function searchLocation() {
@@ -205,7 +542,6 @@
             // Hiérarchie Z-Index
             markers.forEach((m, index) => {
                 if(m.markerFront.getElement()) {
-                    // Les derniers dans la liste sont devant (Z + index)
                     m.markerFront.getElement().style.zIndex = (10000 + index).toString();
                 }
                 if(m.markerBack.getElement()) m.markerBack.getElement().style.zIndex = "1";
@@ -213,24 +549,22 @@
 
             if (markers.length < 2) return;
 
-            markers.forEach(m => { 
+            markers.forEach(m => {
                 const pos = map.project(m.lngLat);
                 m.x = pos.x; m.y = pos.y;
                 if (!m.forceX) { m.forceX = 0; m.forceY = 0; }
-                m.forceX *= 0.85; m.forceY *= 0.85; 
+                m.forceX *= 0.85; m.forceY *= 0.85;
             });
 
-            const RADIUS = 90;
             for (let i = 0; i < markers.length; i++) {
-                // Si le logo est masqué (logoVisible = false), on peut choisir de désactiver sa collision
-                // Ici, je garde la collision active si au moins un des deux (logo ou texte) est visible
-                // pour éviter que ça saute quand on réactive.
-                if(!markers[i].logoVisible && !markers[i].textVisible) continue; 
+                if(!markers[i].logoVisible && !markers[i].textVisible) continue;
 
                 for (let j = i + 1; j < markers.length; j++) {
                     if(!markers[j].logoVisible && !markers[j].textVisible) continue;
-                    
+
                     let m1 = markers[i]; let m2 = markers[j];
+                    // Rayon de collision proportionnel à la taille des logos
+                    const RADIUS = ((m1.size || DEFAULT_LOGO_SIZE) + (m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
                     let dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
                     let dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
                     let dist = Math.sqrt(dx*dx + dy*dy);
@@ -248,11 +582,9 @@
             markers.forEach(m => {
                 const contentWrapper = m.markerFront.getElement().querySelector('.marker-content-wrapper');
                 if (contentWrapper) contentWrapper.style.transform = `translate(${m.forceX}px, ${m.forceY}px)`;
-                
+
                 const line = m.markerBack.getElement().querySelector('.marker-line');
                 const dist = Math.sqrt(m.forceX*m.forceX + m.forceY*m.forceY);
-                
-                // On affiche la ligne seulement si le logo ou le texte est visible
                 const isSomethingVisible = m.logoVisible || m.textVisible;
 
                 if (dist > 5 && isSomethingVisible) {
@@ -285,7 +617,9 @@
         }
     });
 
-    function addMarkerToMap(lngLat, imgUrl, labelText) {
+    function addMarkerToMap(lngLat, imgUrl, labelText, size) {
+        const logoSize = size || DEFAULT_LOGO_SIZE;
+
         const elBack = document.createElement('div');
         elBack.className = 'marker-back-container';
         elBack.innerHTML = `<div class="marker-dot"></div><div class="marker-line"></div>`;
@@ -295,21 +629,22 @@
         elFront.className = 'marker-front-container';
         elFront.innerHTML = `
             <div class="marker-content-wrapper">
-                <div class="marker-image" style="background-image:url('${imgUrl}')"></div>
+                <div class="marker-image" style="background-image:url('${imgUrl}'); width:${logoSize}px; height:${logoSize}px;"></div>
                 <div class="marker-label">${labelText}</div>
             </div>
         `;
         const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 
-        markers.push({ 
-            id: Date.now(), 
-            markerBack: markerBack, 
-            markerFront: markerFront, 
-            lngLat: lngLat, 
-            img: imgUrl, 
+        markers.push({
+            id: nextId(),
+            markerBack: markerBack,
+            markerFront: markerFront,
+            lngLat: lngLat,
+            img: imgUrl,
             label: labelText,
-            logoVisible: true, // Nouveau
-            textVisible: true  // Nouveau
+            size: logoSize,
+            logoVisible: true,
+            textVisible: true
         });
         updateMarkerUI();
     }
@@ -320,24 +655,45 @@
         markers.forEach((m, i) => {
             const div = document.createElement('div');
             div.className = 'list-item';
-            
-            // Icones d'état
+            div.style.flexWrap = 'wrap';
+
             const logoClass = m.logoVisible ? 'toggle-btn' : 'toggle-btn inactive';
             const textClass = m.textVisible ? 'toggle-btn' : 'toggle-btn inactive';
-            
+
             div.innerHTML = `
                 <img src="${m.img}" style="width:20px; height:20px; object-fit:contain;">
                 <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
                 <div class="action-btns">
-                     <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">⬆️</button>
-                    <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">⬇️</button>
-                    <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">🖼️</button>
+                     <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">&#8593;</button>
+                    <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">&#8595;</button>
+                    <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">&#128444;</button>
                     <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">T</button>
-                    <button class="mini-btn del-btn" onclick="removeMarker(${i})">✖</button>
+                    <button class="mini-btn del-btn" onclick="removeMarker(${i})">&#10006;</button>
+                </div>
+                <div class="size-row">
+                    <span>Taille</span>
+                    <input type="range" min="24" max="220" step="2" value="${m.size || DEFAULT_LOGO_SIZE}"
+                           oninput="updateMarkerSize(${i}, this.value)">
+                    <span class="size-val">${m.size || DEFAULT_LOGO_SIZE}px</span>
                 </div>
             `;
             list.appendChild(div);
         });
+        const st = document.getElementById('footer-status');
+        if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
+        updateArrowUI();
+        renderArrows();
+    }
+
+    function updateMarkerSize(index, val) {
+        const size = parseInt(val, 10);
+        markers[index].size = size;
+        const imgEl = markers[index].markerFront.getElement().querySelector('.marker-image');
+        imgEl.style.width = size + 'px';
+        imgEl.style.height = size + 'px';
+        // Mise à jour de l'étiquette de valeur sans re-render complet
+        const row = document.querySelectorAll('#markers-list .list-item')[index];
+        if (row) { const v = row.querySelector('.size-val'); if (v) v.innerText = size + 'px'; }
     }
 
     function moveMarker(index, direction) {
@@ -351,6 +707,8 @@
     function updateLabel(index, val) {
         markers[index].label = val;
         markers[index].markerFront.getElement().querySelector('.marker-label').innerText = val;
+        // Rafraîchit le texte des options dans les sélecteurs de flèches
+        document.querySelectorAll('#arrows-list option[value="' + markers[index].id + '"]').forEach(o => o.textContent = val || 'Repère');
     }
 
     // --- TOGGLES INDIVIDUELS ---
@@ -371,9 +729,15 @@
     }
 
     function removeMarker(index) {
+        const removedId = markers[index].id;
         markers[index].markerBack.remove();
         markers[index].markerFront.remove();
         markers.splice(index, 1);
+        // Nettoie les flèches qui pointaient sur ce repère
+        arrows.forEach(a => {
+            a.from = a.from.filter(id => id !== removedId);
+            a.to = a.to.filter(id => id !== removedId);
+        });
         updateMarkerUI();
     }
 
@@ -382,23 +746,22 @@
         const input = document.getElementById('country-iso').value;
         const color = document.getElementById('border-color').value;
         const opacity = document.getElementById('border-opacity').value;
-        
+
         if (!input && !force) return;
         const codes = input.split(',').map(c => c.trim().toUpperCase());
         if (map.getLayer('custom-borders')) map.removeLayer('custom-borders');
         if (!map.isStyleLoaded()) return;
-        
-        // Style "Civ" : [4, 4]
-        const dashArray = borderDashed ? [4, 4] : [1, 0]; 
+
+        const dashArray = borderDashed ? [4, 4] : [1, 0];
 
         map.addLayer({
             'id': 'custom-borders', 'type': 'line',
             'source': { 'type': 'vector', 'url': 'mapbox://mapbox.country-boundaries-v1' },
             'source-layer': 'country_boundaries',
             'layout': { 'line-join': 'round', 'line-cap': 'round' },
-            'paint': { 
-                'line-color': color, 
-                'line-width': 4, 
+            'paint': {
+                'line-color': color,
+                'line-width': 4,
                 'line-blur': 1,
                 'line-opacity': parseFloat(opacity),
                 'line-dasharray': dashArray
@@ -407,10 +770,10 @@
         });
     }
 
-    function updateBorderColor(color) { 
-        if (map.getLayer('custom-borders')) map.setPaintProperty('custom-borders', 'line-color', color); 
+    function updateBorderColor(color) {
+        if (map.getLayer('custom-borders')) map.setPaintProperty('custom-borders', 'line-color', color);
     }
-    
+
     function updateBorderOpacity(val) {
         if (map.getLayer('custom-borders')) map.setPaintProperty('custom-borders', 'line-opacity', parseFloat(val));
     }
@@ -440,12 +803,13 @@
                 <div class="list-item">
                     <input type="text" value="${k.label}" oninput="keyframes[${i}].label = this.value">
                     <div class="action-btns">
-                        <button class="mini-btn" onclick="moveKey(${i}, -1)">⬆️</button>
-                        <button class="mini-btn" onclick="moveKey(${i}, 1)">⬇️</button>
-                        <button class="mini-btn del-btn" onclick="keyframes.splice(${i},1);updateKeys()">✖</button>
+                        <button class="mini-btn" onclick="moveKey(${i}, -1)">&#8593;</button>
+                        <button class="mini-btn" onclick="moveKey(${i}, 1)">&#8595;</button>
+                        <button class="mini-btn del-btn" onclick="keyframes.splice(${i},1);updateKeys()">&#10006;</button>
                     </div>
                 </div>`;
         });
+        updateArrowUI();
     }
     function moveKey(index, direction) {
         if (index + direction < 0 || index + direction >= keyframes.length) return;
@@ -457,10 +821,23 @@
     async function playScene() {
         if(keyframes.length<2) return alert("2 plans minimum !");
         const s = parseFloat(document.getElementById('speed-range').value);
+        resetArrows();
         map.jumpTo(keyframes[0]);
         await new Promise(r=>setTimeout(r,1000));
+        await playArrowsForKeyframe(0);
         for(let i=1; i<keyframes.length; i++) {
             await new Promise(res => { map.flyTo({...keyframes[i], speed:0.5*s, essential:true}); map.once('moveend', res); });
+            await new Promise(r=>setTimeout(r, 150));
+            await playArrowsForKeyframe(i);
+        }
+    }
+
+    // Joue, l'une après l'autre, les flèches rattachées au keyframe donné
+    async function playArrowsForKeyframe(kfIndex) {
+        const list = arrows.filter(a => a.keyframe === kfIndex && a.from.length && a.to.length);
+        for (const a of list) {
+            await playArrow(a.id);
+            await new Promise(r => setTimeout(r, 120));
         }
     }
 
@@ -496,24 +873,31 @@
     function saveProject() {
         const data = {
             style: currentStyle,
-            borders: { 
-                codes: document.getElementById('country-iso').value, 
+            borders: {
+                codes: document.getElementById('country-iso').value,
                 color: document.getElementById('border-color').value,
                 opacity: document.getElementById('border-opacity').value,
                 dashed: borderDashed
             },
             colors: { land: document.getElementById('color-land').value, water: document.getElementById('color-water').value },
-            keyframes: keyframes, 
-            markersData: markers.map(m => ({ 
-                lngLat: m.lngLat, 
-                img: m.img, 
-                label: m.label, 
-                logoVisible: m.logoVisible, // Sauvegarde état Logo
-                textVisible: m.textVisible  // Sauvegarde état Texte
+            keyframes: keyframes,
+            markersData: markers.map(m => ({
+                lngLat: m.lngLat,
+                img: m.img,
+                label: m.label,
+                size: m.size || DEFAULT_LOGO_SIZE,
+                logoVisible: m.logoVisible,
+                textVisible: m.textVisible
+            })),
+            arrows: arrows.map(a => ({
+                from: a.from.map(id => markerIndexById(id)).filter(i => i >= 0),
+                to:   a.to.map(id => markerIndexById(id)).filter(i => i >= 0),
+                curved: a.curved, color: a.color, opacity: a.opacity, width: a.width,
+                echo: a.echo, mover: a.mover, keyframe: a.keyframe
             }))
         };
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "projet_map_v15.json"; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "projet_map_v16.json"; a.click();
     }
     function loadProject(input) {
         const file = input.files[0]; if(!file) return;
@@ -521,28 +905,45 @@
         reader.onload = (e) => {
             const data = JSON.parse(e.target.result);
             switchStyle(data.style);
-            
+
             document.getElementById('country-iso').value = data.borders.codes;
             document.getElementById('border-color').value = data.borders.color || '#ff0000';
             document.getElementById('border-opacity').value = data.borders.opacity || '1';
             toggleBorderDash(data.borders.dashed || false);
             document.getElementById('color-land').value = data.colors.land;
             document.getElementById('color-water').value = data.colors.water;
-            
+
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
+            arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
             data.markersData.forEach(m => {
-                addMarkerToMap(m.lngLat, m.img, m.label);
+                addMarkerToMap(m.lngLat, m.img, m.label, m.size);
                 const lastIdx = markers.length - 1;
-                // Restauration Logo
                 markers[lastIdx].logoVisible = (m.logoVisible !== undefined) ? m.logoVisible : true;
                 if(!markers[lastIdx].logoVisible) markers[lastIdx].markerFront.getElement().querySelector('.marker-image').classList.add('hidden');
-                // Restauration Texte
                 markers[lastIdx].textVisible = (m.textVisible !== undefined) ? m.textVisible : true;
                 if(!markers[lastIdx].textVisible) markers[lastIdx].markerFront.getElement().querySelector('.marker-label').classList.add('hidden');
             });
             updateMarkerUI();
 
             keyframes = data.keyframes || []; updateKeys();
+
+            // Reconstruit les flèches (références stockées en index de marqueur)
+            arrows = (data.arrows || []).map(a => ({
+                id: nextId(),
+                from: (a.from || []).map(i => markers[i] && markers[i].id).filter(Boolean),
+                to:   (a.to   || []).map(i => markers[i] && markers[i].id).filter(Boolean),
+                curved: !!a.curved,
+                color: a.color || currentAccent(),
+                opacity: (a.opacity != null) ? a.opacity : 0.9,
+                width: a.width || 3,
+                echo: !!a.echo,
+                mover: !!a.mover,
+                keyframe: (a.keyframe != null) ? a.keyframe : null,
+                drawn: true
+            }));
+            updateArrowUI();
+            renderArrows();
+
             setTimeout(() => drawBorders(), 1000);
         };
         reader.readAsText(file);
@@ -551,6 +952,294 @@
         const ui = document.getElementById('ui-panel');
         ui.style.display = ui.style.display === 'none' ? 'block' : 'none';
     }
+
+    // ============================================================
+    //  SYSTÈME DE FLÈCHES  (overlay SVG synchronisé sur la carte)
+    // ============================================================
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const arrowSvg = document.getElementById('arrow-overlay');
+
+    function currentAccent() {
+        return (getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#0000ff').toLowerCase();
+    }
+    function markerById(id) { return markers.find(m => m.id === id); }
+    function markerIndexById(id) { return markers.findIndex(m => m.id === id); }
+    function getArrow(id) { return arrows.find(a => a.id === id); }
+
+    function addArrow() {
+        arrows.push({
+            id: nextId(), from: [], to: [],
+            curved: false, color: currentAccent(), opacity: 0.9, width: 3,
+            echo: false, mover: false, keyframe: null, drawn: true
+        });
+        updateArrowUI();
+        renderArrows();
+    }
+
+    function removeArrow(id) {
+        arrows = arrows.filter(a => a.id !== id);
+        const g = document.getElementById('arw_' + id);
+        if (g) g.remove();
+        updateArrowUI();
+    }
+
+    function readMultiSelect(sel) {
+        return [...sel.options].filter(o => o.selected).map(o => o.value);
+    }
+
+    function setArrowField(id, field, value) {
+        const a = getArrow(id); if (!a) return;
+        a[field] = value;
+        if (field === 'from' || field === 'to') rebuildArrowGroup(a);
+        renderArrows();
+    }
+
+    function updateArrowUI() {
+        const wrap = document.getElementById('arrows-list');
+        if (!wrap) return;
+        if (!arrows.length) {
+            wrap.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:1px;">AUCUNE FL&Egrave;CHE</div>';
+            return;
+        }
+        const esc = s => String(s).replace(/</g, '&lt;');
+        const opts = markers.map(m => `<option value="${m.id}">${esc(m.label || 'Repère')}</option>`).join('');
+        const kfOpts = ['<option value="">Aucun</option>']
+            .concat(keyframes.map((k, i) => `<option value="${i}">${esc(k.label || ('Plan ' + (i + 1)))}</option>`)).join('');
+
+        wrap.innerHTML = arrows.map((a, i) => `
+            <div class="arrow-fiche" data-id="${a.id}">
+                <div class="af-head">
+                    <span class="af-title">FL&Egrave;CHE ${i + 1}</span>
+                    <input type="color" value="${a.color}" title="Couleur" oninput="setArrowField('${a.id}','color',this.value)">
+                    <button class="mini-btn" title="Aperçu" onclick="playArrow('${a.id}')">&#9654;</button>
+                    <button class="mini-btn del-btn" title="Supprimer" onclick="removeArrow('${a.id}')">&#10006;</button>
+                </div>
+                <div class="af-cols">
+                    <div class="af-col">
+                        <label class="af-lbl">D&eacute;part (A)</label>
+                        <select multiple size="3" onchange="setArrowField('${a.id}','from',readMultiSelect(this))">${opts}</select>
+                    </div>
+                    <div class="af-col">
+                        <label class="af-lbl">Arriv&eacute;e (B)</label>
+                        <select multiple size="3" onchange="setArrowField('${a.id}','to',readMultiSelect(this))">${opts}</select>
+                    </div>
+                </div>
+                <div class="af-row">
+                    <label><input type="checkbox" ${a.curved ? 'checked' : ''} onchange="setArrowField('${a.id}','curved',this.checked)"> Courbe</label>
+                    <label><input type="checkbox" ${a.echo ? 'checked' : ''} onchange="setArrowField('${a.id}','echo',this.checked)"> &Eacute;cho</label>
+                    <label><input type="checkbox" ${a.mover ? 'checked' : ''} onchange="setArrowField('${a.id}','mover',this.checked)"> Point mobile</label>
+                </div>
+                <div class="af-row">
+                    <span>&Eacute;paiss.</span>
+                    <input type="range" min="1" max="10" step="0.5" value="${a.width}" oninput="setArrowField('${a.id}','width',parseFloat(this.value))">
+                    <span>Opac.</span>
+                    <input type="range" min="0.1" max="1" step="0.05" value="${a.opacity}" oninput="setArrowField('${a.id}','opacity',parseFloat(this.value))">
+                </div>
+                <div class="af-row">
+                    <span>Keyframe</span>
+                    <select onchange="setArrowField('${a.id}','keyframe', this.value===''?null:parseInt(this.value,10))">${kfOpts}</select>
+                </div>
+            </div>
+        `).join('');
+
+        // Restaure les sélections après re-render du HTML
+        arrows.forEach(a => {
+            const fiche = wrap.querySelector('.arrow-fiche[data-id="' + a.id + '"]');
+            if (!fiche) return;
+            const sels = fiche.querySelectorAll('select');
+            [...sels[0].options].forEach(o => o.selected = a.from.includes(o.value));
+            [...sels[1].options].forEach(o => o.selected = a.to.includes(o.value));
+            sels[2].value = (a.keyframe != null) ? String(a.keyframe) : '';
+        });
+
+        arrows.forEach(a => rebuildArrowGroup(a));
+    }
+
+    // --- Géométrie ---
+    function anchorScreen(m) {
+        const p = map.project(m.lngLat);
+        const lift = (m.size || DEFAULT_LOGO_SIZE) * 0.55;
+        return { x: p.x, y: p.y - lift };
+    }
+
+    function arrowPairs(a) {
+        const pairs = [];
+        a.from.forEach(fid => {
+            const fm = markerById(fid); if (!fm) return;
+            a.to.forEach(tid => {
+                if (tid === fid) return;
+                const tm = markerById(tid); if (!tm) return;
+                pairs.push([fm, tm]);
+            });
+        });
+        return pairs;
+    }
+
+    function pathD(a, s, e) {
+        if (!a.curved) return `M ${s.x} ${s.y} L ${e.x} ${e.y}`;
+        const mx = (s.x + e.x) / 2, my = (s.y + e.y) / 2;
+        const dx = e.x - s.x, dy = e.y - s.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const off = Math.min(len * 0.22, 130);
+        const cx = mx + (-dy / len) * off;
+        const cy = my + (dx / len) * off;
+        return `M ${s.x} ${s.y} Q ${cx} ${cy} ${e.x} ${e.y}`;
+    }
+
+    // Crée/ajuste la structure SVG d'une flèche (un <g> -> N segments)
+    function rebuildArrowGroup(a) {
+        let g = document.getElementById('arw_' + a.id);
+        const pairs = arrowPairs(a);
+        if (!pairs.length) { if (g) g.remove(); return; }
+        if (!g) {
+            g = document.createElementNS(SVGNS, 'g');
+            g.id = 'arw_' + a.id;
+            arrowSvg.appendChild(g);
+        }
+        if (g.childElementCount !== pairs.length) {
+            g.textContent = '';
+            pairs.forEach(() => {
+                const seg = document.createElementNS(SVGNS, 'g');
+                seg.setAttribute('class', 'arrow-seg');
+                const e1 = document.createElementNS(SVGNS, 'path'); e1.setAttribute('class', 'arrow-echo');
+                const e2 = document.createElementNS(SVGNS, 'path'); e2.setAttribute('class', 'arrow-echo e2');
+                const e3 = document.createElementNS(SVGNS, 'path'); e3.setAttribute('class', 'arrow-echo e3');
+                const main = document.createElementNS(SVGNS, 'path'); main.setAttribute('class', 'arrow-main');
+                const head = document.createElementNS(SVGNS, 'path'); head.setAttribute('class', 'arrow-head');
+                const mover = document.createElementNS(SVGNS, 'circle'); mover.setAttribute('class', 'arrow-mover'); mover.setAttribute('r', '4');
+                seg.append(e1, e2, e3, main, head, mover);
+                g.appendChild(seg);
+            });
+        }
+    }
+
+    function renderArrows() {
+        if (!arrowSvg) return;
+        arrows.forEach(a => {
+            const g = document.getElementById('arw_' + a.id);
+            if (!g) return;
+            const pairs = arrowPairs(a);
+            [...g.children].forEach((seg, idx) => {
+                const pair = pairs[idx];
+                if (!pair) { seg.style.display = 'none'; return; }
+                seg.style.display = '';
+                const s = anchorScreen(pair[0]);
+                const e = anchorScreen(pair[1]);
+                const d = pathD(a, s, e);
+                const [e1, e2, e3, main, head, mover] = seg.children;
+
+                main.setAttribute('d', d);
+                main.setAttribute('stroke', a.color);
+                main.setAttribute('stroke-width', a.width);
+                if (a.drawn) main.style.opacity = a.opacity;
+
+                [e1, e2, e3].forEach(el => {
+                    el.setAttribute('d', d);
+                    el.setAttribute('stroke', a.color);
+                    el.style.display = (a.echo && a.drawn) ? '' : 'none';
+                });
+
+                const L = main.getTotalLength();
+                if (L > 4) {
+                    const pEnd = main.getPointAtLength(L);
+                    const pPrev = main.getPointAtLength(Math.max(0, L - 1));
+                    const ang = Math.atan2(pEnd.y - pPrev.y, pEnd.x - pPrev.x);
+                    const hs = 9 + a.width * 2.6;
+                    const p1x = pEnd.x - hs * Math.cos(ang - 0.42), p1y = pEnd.y - hs * Math.sin(ang - 0.42);
+                    const p2x = pEnd.x - hs * Math.cos(ang + 0.42), p2y = pEnd.y - hs * Math.sin(ang + 0.42);
+                    head.setAttribute('d', `M ${pEnd.x} ${pEnd.y} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`);
+                    head.setAttribute('fill', a.color);
+                    if (a.drawn) head.style.opacity = a.opacity;
+                }
+
+                mover.setAttribute('fill', a.color);
+                mover.style.color = a.color;
+                mover.setAttribute('r', String(3 + a.width * 0.5));
+                mover.style.display = (a.mover && a.drawn) ? '' : 'none';
+            });
+        });
+    }
+
+    // Tracé progressif — renvoie une promesse résolue à la fin de l'animation
+    function playArrow(id) {
+        const a = getArrow(id);
+        if (!a || !a.from.length || !a.to.length) return Promise.resolve();
+        a.drawn = false;
+        rebuildArrowGroup(a);
+        renderArrows();
+        const g = document.getElementById('arw_' + a.id);
+        if (!g) return Promise.resolve();
+
+        [...g.children].forEach(seg => {
+            if (seg.style.display === 'none') return;
+            const main = seg.children[3], head = seg.children[4];
+            const L = main.getTotalLength() || 1;
+            main.style.transition = 'none';
+            main.style.opacity = a.opacity;
+            main.style.strokeDasharray = L;
+            main.style.strokeDashoffset = L;
+            head.style.transition = 'none';
+            head.style.opacity = 0;
+            void main.getBoundingClientRect();
+            main.style.transition = 'stroke-dashoffset ' + ARROW_DRAW_MS + 'ms linear';
+            main.style.strokeDashoffset = '0';
+            setTimeout(() => { head.style.transition = 'opacity .2s'; head.style.opacity = a.opacity; }, ARROW_DRAW_MS * 0.82);
+        });
+
+        return new Promise(resolve => setTimeout(() => {
+            a.drawn = true;
+            [...g.children].forEach(seg => {
+                const main = seg.children[3];
+                main.style.strokeDasharray = 'none';
+                main.style.strokeDashoffset = '0';
+            });
+            renderArrows();
+            resolve();
+        }, ARROW_DRAW_MS + 70));
+    }
+
+    // Cache les flèches rattachées à un keyframe avant une lecture de scène
+    function resetArrows() {
+        arrows.forEach(a => {
+            if (a.keyframe == null) return;
+            a.drawn = false;
+            const g = document.getElementById('arw_' + a.id);
+            if (g) [...g.children].forEach(seg => {
+                const main = seg.children[3], head = seg.children[4];
+                main.style.transition = 'none';
+                main.style.opacity = 0;
+                head.style.opacity = 0;
+            });
+        });
+        renderArrows();
+    }
+
+    // Boucle d'animation : point mobile le long des flèches
+    (function arrowLoop() {
+        arrows.forEach(a => {
+            if (!a.mover || !a.drawn) return;
+            const g = document.getElementById('arw_' + a.id);
+            if (!g) return;
+            [...g.children].forEach(seg => {
+                if (seg.style.display === 'none') return;
+                const main = seg.children[3], mover = seg.children[5];
+                const L = main.getTotalLength();
+                if (!L) return;
+                let ph = (parseFloat(mover.dataset.ph || '0') + 0.006) % 1;
+                mover.dataset.ph = ph;
+                const pt = main.getPointAtLength(ph * L);
+                mover.setAttribute('cx', pt.x);
+                mover.setAttribute('cy', pt.y);
+            });
+        });
+        requestAnimationFrame(arrowLoop);
+    })();
+
+    map.on('move', renderArrows);
+    map.on('render', renderArrows);
+    map.on('resize', renderArrows);
+
+    updateArrowUI();
 </script>
 </body>
 </html>
