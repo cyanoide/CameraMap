@@ -229,6 +229,7 @@
             color: var(--text); font-size: 12px; font-family: var(--font-main); letter-spacing: .5px;
         }
         .list-item input:focus { background: var(--item-selected); color: var(--text); }
+        .list-item input[type="color"] { width: 26px; height: 20px; flex: none; border: 1px solid var(--border); }
 
         .action-btns { display: flex; gap: 2px; margin-left: auto; }
         .mini-btn {
@@ -249,6 +250,23 @@
         }
         .size-row input[type="range"] { flex: 1; width: auto; }
         .size-row .size-val { min-width: 42px; text-align: right; color: var(--text); }
+
+        /* --- GROUPE (par marqueur) --- */
+        .group-row {
+            display: flex; align-items: center; gap: 8px; width: 100%;
+            margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border);
+            font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+        }
+        .group-row select {
+            flex: 1; background: var(--bg-field); color: var(--text);
+            border: 1px solid var(--border); border-radius: 2px; padding: 3px;
+            font-family: var(--font-mono); font-size: 10px; outline: none;
+        }
+        .group-row select:focus { border-color: var(--accent); }
+        .group-dot {
+            width: 10px; height: 10px; border-radius: 50%; flex: none;
+            border: 1px solid rgba(255,255,255,.5);
+        }
 
         /* ============================================================
            FLÈCHES (overlay SVG au-dessus de la carte)
@@ -424,6 +442,14 @@
     </div>
 
     <div class="control-group">
+        <h3>Groupes</h3>
+        <div class="btn-grid" style="margin-bottom:10px;">
+            <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
+        </div>
+        <div id="groups-list"></div>
+    </div>
+
+    <div class="control-group">
         <h3>Logos et Textes</h3>
         <div class="btn-grid" style="margin-bottom:10px;">
             <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
@@ -467,6 +493,7 @@
     let markers = [];
     let keyframes = [];
     let arrows = [];
+    let groups = [];
     let pendingImage = null;
     let physicsInterval = null;
     let borderDashed = false;
@@ -476,6 +503,94 @@
 
     let _idSeq = 0;
     function nextId() { return 'id_' + Date.now().toString(36) + '_' + (_idSeq++).toString(36); }
+    function escHtml(s) { return String(s).replace(/</g, '&lt;'); }
+
+    // --- GROUPES DE LOGOS ---
+    function getGroup(id) { return groups.find(g => g.id === id); }
+    function groupIsVisible(m) { const g = getGroup(m.groupId); return g ? g.visible : true; }
+    function isMarkerActive(m) { return (m.logoVisible || m.textVisible) && groupIsVisible(m); }
+    function groupDotColor(groupId) { const g = getGroup(groupId); return g ? g.color : 'var(--accent)'; }
+
+    function refreshMarkerVisibility(m) {
+        const el = m.markerFront.getElement();
+        const imgEl = el.querySelector('.marker-image');
+        const txtEl = el.querySelector('.marker-label');
+        const gv = groupIsVisible(m);
+        imgEl.classList.toggle('hidden', !(m.logoVisible && gv));
+        txtEl.classList.toggle('hidden', !(m.textVisible && gv));
+    }
+
+    function applyGroupColorToMarker(m) {
+        const dot = m.markerBack.getElement().querySelector('.marker-dot');
+        if (!dot) return;
+        const c = groupDotColor(m.groupId);
+        dot.style.background = c;
+        dot.style.boxShadow = '0 0 8px ' + c;
+    }
+
+    function addGroup() {
+        groups.push({ id: nextId(), name: 'Groupe ' + (groups.length + 1), color: currentAccent(), visible: true });
+        updateGroupUI();
+        updateMarkerUI();
+    }
+
+    function removeGroup(id) {
+        groups = groups.filter(g => g.id !== id);
+        markers.forEach(m => {
+            if (m.groupId === id) { m.groupId = null; applyGroupColorToMarker(m); refreshMarkerVisibility(m); }
+        });
+        updateGroupUI();
+        updateMarkerUI();
+    }
+
+    function renameGroup(id, name) {
+        const g = getGroup(id); if (!g) return;
+        g.name = name;
+        document.querySelectorAll('#markers-list option[value="' + id + '"]').forEach(o => o.textContent = name || 'Groupe');
+    }
+
+    function setGroupColor(id, color) {
+        const g = getGroup(id); if (!g) return;
+        g.color = color;
+        markers.forEach(m => { if (m.groupId === id) applyGroupColorToMarker(m); });
+        document.querySelectorAll('#markers-list .group-dot[data-group="' + id + '"]').forEach(d => d.style.background = color);
+    }
+
+    function toggleGroupVisibility(id) {
+        const g = getGroup(id); if (!g) return;
+        g.visible = !g.visible;
+        markers.forEach(m => { if (m.groupId === id) refreshMarkerVisibility(m); });
+        updateGroupUI();
+    }
+
+    function assignMarkerGroup(index, groupId) {
+        markers[index].groupId = groupId || null;
+        applyGroupColorToMarker(markers[index]);
+        refreshMarkerVisibility(markers[index]);
+        updateMarkerUI();
+    }
+
+    function updateGroupUI() {
+        const wrap = document.getElementById('groups-list');
+        if (!wrap) return;
+        if (!groups.length) {
+            wrap.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:1px;">AUCUN GROUPE</div>';
+            return;
+        }
+        wrap.innerHTML = groups.map(g => {
+            const count = markers.filter(m => m.groupId === g.id).length;
+            return `
+            <div class="list-item">
+                <input type="color" value="${g.color}" title="Couleur du point" oninput="setGroupColor('${g.id}', this.value)">
+                <input type="text" value="${escHtml(g.name)}" oninput="renameGroup('${g.id}', this.value)">
+                <span class="group-count" style="font-family:var(--font-mono); font-size:9px; color:var(--muted); flex:none;">${count}</span>
+                <div class="action-btns">
+                    <button class="mini-btn toggle-btn ${g.visible ? '' : 'inactive'}" title="Afficher/Masquer le groupe" onclick="toggleGroupVisibility('${g.id}')">&#128065;</button>
+                    <button class="mini-btn del-btn" title="Supprimer le groupe" onclick="removeGroup('${g.id}')">&#10006;</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
 
     const map = new mapboxgl.Map({
         container: 'map',
@@ -557,10 +672,10 @@
             });
 
             for (let i = 0; i < markers.length; i++) {
-                if(!markers[i].logoVisible && !markers[i].textVisible) continue;
+                if(!isMarkerActive(markers[i])) continue;
 
                 for (let j = i + 1; j < markers.length; j++) {
-                    if(!markers[j].logoVisible && !markers[j].textVisible) continue;
+                    if(!isMarkerActive(markers[j])) continue;
 
                     let m1 = markers[i]; let m2 = markers[j];
                     // Rayon de collision proportionnel à la taille des logos
@@ -585,7 +700,7 @@
 
                 const line = m.markerBack.getElement().querySelector('.marker-line');
                 const dist = Math.sqrt(m.forceX*m.forceX + m.forceY*m.forceY);
-                const isSomethingVisible = m.logoVisible || m.textVisible;
+                const isSomethingVisible = isMarkerActive(m);
 
                 if (dist > 5 && isSomethingVisible) {
                     line.style.display = 'block';
@@ -617,12 +732,14 @@
         }
     });
 
-    function addMarkerToMap(lngLat, imgUrl, labelText, size) {
+    function addMarkerToMap(lngLat, imgUrl, labelText, size, groupId) {
         const logoSize = size || DEFAULT_LOGO_SIZE;
+        const gid = groupId || null;
+        const dotColor = groupDotColor(gid);
 
         const elBack = document.createElement('div');
         elBack.className = 'marker-back-container';
-        elBack.innerHTML = `<div class="marker-dot"></div><div class="marker-line"></div>`;
+        elBack.innerHTML = `<div class="marker-dot" style="background:${dotColor}; box-shadow:0 0 8px ${dotColor};"></div><div class="marker-line"></div>`;
         const markerBack = new mapboxgl.Marker({ element: elBack, anchor: 'center' }).setLngLat(lngLat).addTo(map);
 
         const elFront = document.createElement('div');
@@ -643,6 +760,7 @@
             img: imgUrl,
             label: labelText,
             size: logoSize,
+            groupId: gid,
             logoVisible: true,
             textVisible: true
         });
@@ -659,6 +777,8 @@
 
             const logoClass = m.logoVisible ? 'toggle-btn' : 'toggle-btn inactive';
             const textClass = m.textVisible ? 'toggle-btn' : 'toggle-btn inactive';
+            const groupOpts = ['<option value="">— Aucun —</option>']
+                .concat(groups.map(g => `<option value="${g.id}" ${m.groupId === g.id ? 'selected' : ''}>${escHtml(g.name)}</option>`)).join('');
 
             div.innerHTML = `
                 <img src="${m.img}" style="width:20px; height:20px; object-fit:contain;">
@@ -676,13 +796,29 @@
                            oninput="updateMarkerSize(${i}, this.value)">
                     <span class="size-val">${m.size || DEFAULT_LOGO_SIZE}px</span>
                 </div>
+                <div class="group-row">
+                    <span class="group-dot" data-group="${m.groupId || ''}" style="background:${groupDotColor(m.groupId)};"></span>
+                    <span>Groupe</span>
+                    <select onchange="assignMarkerGroup(${i}, this.value)">${groupOpts}</select>
+                </div>
             `;
             list.appendChild(div);
         });
         const st = document.getElementById('footer-status');
         if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
+        updateGroupCounts();
         updateArrowUI();
         renderArrows();
+    }
+
+    // Rafraîchit uniquement le compteur de membres de chaque groupe (léger, pas de re-render complet)
+    function updateGroupCounts() {
+        document.querySelectorAll('#groups-list .list-item').forEach((row, i) => {
+            const g = groups[i];
+            if (!g) return;
+            const countEl = row.querySelector('.group-count');
+            if (countEl) countEl.textContent = markers.filter(m => m.groupId === g.id).length;
+        });
     }
 
     function updateMarkerSize(index, val) {
@@ -714,17 +850,13 @@
     // --- TOGGLES INDIVIDUELS ---
     function toggleLogo(index) {
         markers[index].logoVisible = !markers[index].logoVisible;
-        const imgEl = markers[index].markerFront.getElement().querySelector('.marker-image');
-        if(markers[index].logoVisible) imgEl.classList.remove('hidden');
-        else imgEl.classList.add('hidden');
+        refreshMarkerVisibility(markers[index]);
         updateMarkerUI();
     }
 
     function toggleText(index) {
         markers[index].textVisible = !markers[index].textVisible;
-        const txtEl = markers[index].markerFront.getElement().querySelector('.marker-label');
-        if(markers[index].textVisible) txtEl.classList.remove('hidden');
-        else txtEl.classList.add('hidden');
+        refreshMarkerVisibility(markers[index]);
         updateMarkerUI();
     }
 
@@ -881,13 +1013,15 @@
             },
             colors: { land: document.getElementById('color-land').value, water: document.getElementById('color-water').value },
             keyframes: keyframes,
+            groups: groups.map(g => ({ name: g.name, color: g.color, visible: g.visible })),
             markersData: markers.map(m => ({
                 lngLat: m.lngLat,
                 img: m.img,
                 label: m.label,
                 size: m.size || DEFAULT_LOGO_SIZE,
                 logoVisible: m.logoVisible,
-                textVisible: m.textVisible
+                textVisible: m.textVisible,
+                groupIndex: m.groupId ? groups.findIndex(g => g.id === m.groupId) : -1
             })),
             arrows: arrows.map(a => ({
                 from: a.from.map(id => markerIndexById(id)).filter(i => i >= 0),
@@ -915,14 +1049,24 @@
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
+
+            // Groupes (absents des anciens fichiers -> tableau vide, rétro-compatible)
+            groups = (data.groups || []).map(g => ({
+                id: nextId(),
+                name: g.name || 'Groupe',
+                color: g.color || currentAccent(),
+                visible: (g.visible !== false)
+            }));
+
             data.markersData.forEach(m => {
-                addMarkerToMap(m.lngLat, m.img, m.label, m.size);
+                const gid = (m.groupIndex != null && m.groupIndex >= 0 && groups[m.groupIndex]) ? groups[m.groupIndex].id : null;
+                addMarkerToMap(m.lngLat, m.img, m.label, m.size, gid);
                 const lastIdx = markers.length - 1;
                 markers[lastIdx].logoVisible = (m.logoVisible !== undefined) ? m.logoVisible : true;
-                if(!markers[lastIdx].logoVisible) markers[lastIdx].markerFront.getElement().querySelector('.marker-image').classList.add('hidden');
                 markers[lastIdx].textVisible = (m.textVisible !== undefined) ? m.textVisible : true;
-                if(!markers[lastIdx].textVisible) markers[lastIdx].markerFront.getElement().querySelector('.marker-label').classList.add('hidden');
+                refreshMarkerVisibility(markers[lastIdx]);
             });
+            updateGroupUI();
             updateMarkerUI();
 
             keyframes = data.keyframes || []; updateKeys();
@@ -1239,6 +1383,7 @@
     map.on('render', renderArrows);
     map.on('resize', renderArrows);
 
+    updateGroupUI();
     updateArrowUI();
 </script>
 </body>
