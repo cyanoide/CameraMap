@@ -149,8 +149,10 @@
         }
         h3::before { content: "// "; opacity: .6; }
 
-        h3.h3-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
-        h3.h3-toggle .h3-chevron { transition: transform .2s ease; font-size: 10px; }
+        /* justify-content:space-between casserait la mise en page à cause du ::before ("// ") qui
+           compte comme un item flex à part entière ; on pousse juste le chevron via margin-left:auto */
+        h3.h3-toggle { display: flex; align-items: center; cursor: pointer; user-select: none; }
+        h3.h3-toggle .h3-chevron { margin-left: auto; padding-left: 8px; transition: transform .2s ease; font-size: 10px; }
         h3.h3-toggle.collapsed .h3-chevron { transform: rotate(-90deg); }
         .collapsible-body { overflow: hidden; }
         .collapsible-body.collapsed { display: none; }
@@ -219,7 +221,7 @@
         .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; pointer-events: auto; }
         .marker-image:hover { transform: scale(1.15); z-index: 9999 !important; }
 
-        .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: none; transition: opacity 0.3s; font-family: var(--font-main); }
+        .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: auto; cursor: pointer; transition: opacity 0.3s; font-family: var(--font-main); }
 
         .hidden { opacity: 0 !important; visibility: hidden; }
         /* Aperçu au survol du point (activable via le toggle SURVOL) */
@@ -278,10 +280,16 @@
         }
         .group-divider {
             display: flex; align-items: center; gap: 6px;
-            margin: 10px 0 4px; font-family: var(--font-mono); font-size: 9px;
+            margin: 10px 0 4px; padding: 3px 4px; border-radius: 2px;
+            font-family: var(--font-mono); font-size: 9px;
             letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+            cursor: pointer; user-select: none;
         }
         .group-divider:first-child { margin-top: 0; }
+        .group-divider:hover { background: var(--item-hover); color: var(--text); }
+        .group-divider .gd-chevron { margin-left: auto; font-size: 8px; transition: transform .2s ease; }
+        .group-divider.collapsed .gd-chevron { transform: rotate(-90deg); }
+        .group-section-body.collapsed { display: none; }
 
         /* ============================================================
            FLÈCHES (overlay SVG au-dessus de la carte)
@@ -451,23 +459,26 @@
     </div>
 
     <div class="control-group">
-        <h3>Navigation</h3>
-        <div class="search-box">
-            <input type="text" id="search-input" placeholder="Ville, Lieu, Adresse...">
-            <button onclick="searchLocation()">Go</button>
+        <h3 class="h3-toggle" id="nav-h3" onclick="toggleSection('nav')">Navigation <span class="h3-chevron">&#9660;</span></h3>
+        <div id="nav-body" class="collapsible-body">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Ville, Lieu, Adresse...">
+                <button onclick="searchLocation()">Go</button>
+            </div>
         </div>
     </div>
 
     <div class="control-group">
-        <h3>Style et Frontières</h3>
+        <h3 class="h3-toggle" id="style-h3" onclick="toggleSection('style')">Style et Fronti&egrave;res <span class="h3-chevron">&#9660;</span></h3>
+        <div id="style-body" class="collapsible-body">
         <div class="btn-grid" style="margin-bottom:8px;">
             <button id="btn-sat" onclick="switchStyle('satellite')" class="primary">&#127757; Satellite</button>
             <button id="btn-plan" onclick="switchStyle('plan')">&#128208; Plan 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
-            <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="landCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="onLightColorInput('land',this.value); updateColors()"></div>
             <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="waterCustomized=true; updateColors()"></div>
-            <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="roadCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="onLightColorInput('road',this.value); updateColors()"></div>
         </div>
 
         <input type="text" id="country-iso" placeholder="Frontières (ex: FR, CN, US)" value="CN">
@@ -497,10 +508,11 @@
             <button class="primary" onclick="drawBorders()">Surligner</button>
             <button onclick="clearBorders()">Effacer</button>
         </div>
+        </div>
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="groups-h3" onclick="toggleGroupsCollapse()">Groupes <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="groups-h3" onclick="toggleSection('groups')">Groupes <span class="h3-chevron">&#9660;</span></h3>
         <div id="groups-body" class="collapsible-body">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
@@ -510,30 +522,40 @@
     </div>
 
     <div class="control-group">
-        <h3>Logos et Textes</h3>
-        <div class="btn-grid" style="margin-bottom:10px;">
-            <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
+        <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Logos et Textes <span class="h3-chevron">&#9660;</span></h3>
+        <div id="logos-body" class="collapsible-body">
+            <div class="btn-grid" style="margin-bottom:6px;">
+                <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
+            </div>
+            <div class="btn-grid" style="margin-bottom:10px;">
+                <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères">&#128444; Tout</button>
+                <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères">&#128205; Tout</button>
+            </div>
+            <input type="file" id="logo-upload" accept="image/*" style="display:none;">
+            <div id="markers-list" style="margin-top:10px;"></div>
         </div>
-        <input type="file" id="logo-upload" accept="image/*" style="display:none;">
-        <div id="markers-list" style="margin-top:10px;"></div>
     </div>
 
     <div class="control-group">
-        <h3>Flèches</h3>
-        <div class="btn-grid" style="margin-bottom:10px;">
-            <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
+        <h3 class="h3-toggle" id="arrows-h3" onclick="toggleSection('arrows')">Flèches <span class="h3-chevron">&#9660;</span></h3>
+        <div id="arrows-body" class="collapsible-body">
+            <div class="btn-grid" style="margin-bottom:10px;">
+                <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
+            </div>
+            <div id="arrows-list"></div>
         </div>
-        <div id="arrows-list"></div>
     </div>
 
     <div class="control-group">
-        <h3>Vidéo</h3>
-        <button class="primary" onclick="addKeyframe()">+ Ajouter Keyframe</button>
-        <div id="keyframes-list" style="margin-top:5px;"></div>
-        <div style="margin-top:15px; background:var(--bg-field); padding:10px; border:1px solid var(--border); border-radius:2px;">
-            <label style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted);">Vitesse</label>
-            <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" style="width:100%;">
-            <button class="record" onclick="playScene()" style="margin-top:8px;">&#9654; Action</button>
+        <h3 class="h3-toggle" id="video-h3" onclick="toggleSection('video')">Vidéo <span class="h3-chevron">&#9660;</span></h3>
+        <div id="video-body" class="collapsible-body">
+            <button class="primary" onclick="addKeyframe()">+ Ajouter Keyframe</button>
+            <div id="keyframes-list" style="margin-top:5px;"></div>
+            <div style="margin-top:15px; background:var(--bg-field); padding:10px; border:1px solid var(--border); border-radius:2px;">
+                <label style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted);">Vitesse</label>
+                <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" style="width:100%;">
+                <button class="record" onclick="playScene()" style="margin-top:8px;">&#9654; Action</button>
+            </div>
         </div>
     </div>
 
@@ -580,6 +602,14 @@
         const gv = groupIsVisible(m);
         imgEl.classList.toggle('hidden', !(m.logoVisible && gv));
         txtEl.classList.toggle('hidden', !(m.textVisible && gv));
+
+        // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
+        const backEl = m.markerBack.getElement();
+        const pointShown = (m.pointVisible !== false) && gv;
+        const dotEl = backEl.querySelector('.marker-dot');
+        const zoneEl = backEl.querySelector('.marker-hover-zone');
+        if (dotEl) dotEl.style.display = pointShown ? '' : 'none';
+        if (zoneEl) zoneEl.style.display = pointShown ? '' : 'none';
     }
 
     function applyGroupColorToMarker(m) {
@@ -648,6 +678,8 @@
                 <span class="group-count" style="font-family:var(--font-mono); font-size:9px; color:var(--muted); flex:none;">${count}</span>
                 <div class="action-btns">
                     <button class="mini-btn toggle-btn ${g.visible ? '' : 'inactive'}" title="Afficher/Masquer le groupe" onclick="toggleGroupVisibility('${g.id}')">&#128065;</button>
+                    <button class="mini-btn" title="Basculer les logos du groupe" onclick="toggleGroupLogos('${g.id}')">&#128444;</button>
+                    <button class="mini-btn" title="Basculer les points du groupe" onclick="toggleGroupPoints('${g.id}')">&#128205;</button>
                     <button class="mini-btn del-btn" title="Supprimer le groupe" onclick="removeGroup('${g.id}')">&#10006;</button>
                 </div>
             </div>`;
@@ -675,23 +707,38 @@
     }
 
     // --- THEME ---
-    // Tant que l'utilisateur n'a pas choisi sa propre couleur Sol/Eau, elles suivent le thème
-    // Jour/Nuit (sinon le mode Plan restait gris clair même en thème Nuit).
-    let landCustomized = false;
+    // Sol et Routes en thème Nuit = l'inverse colorimétrique de leur valeur en thème Jour
+    // (demandé explicitement : "l'inverse des couleurs de route et sol... pour directement marcher").
+    // L'eau, elle, suit un simple préréglage sombre dédié : l'inverse d'un bleu clair donne un
+    // orange criard, pas un océan sombre plausible.
+    let landLight = '#e0e0e0';
+    let roadLight = '#ffffff';
     let waterCustomized = false;
-    let roadCustomized = false;
-    const LAND_BY_THEME = { light: '#e0e0e0', dark: '#141414' };
     const WATER_BY_THEME = { light: '#a0cfdf', dark: '#06222c' };
-    const ROAD_BY_THEME = { light: '#ffffff', dark: '#4a4a4a' };
+
+    function invertHex(hex) {
+        hex = (hex || '#808080').replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const num = parseInt(hex, 16) || 0;
+        const r = 255 - ((num >> 16) & 255), g = 255 - ((num >> 8) & 255), b = 255 - (num & 255);
+        return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Mémorise la couleur "de référence" (thème Jour) quand on l'édite en thème Jour,
+    // pour pouvoir toujours en dériver l'inverse quand on repasse en thème Nuit.
+    function onLightColorInput(key, value) {
+        if (document.body.classList.contains('theme-dark')) return;
+        if (key === 'land') landLight = value; else if (key === 'road') roadLight = value;
+    }
 
     function toggleTheme() {
         const dark = document.body.classList.toggle('theme-dark');
         document.body.classList.toggle('theme-light', !dark);
         document.getElementById('theme-label').innerText = dark ? 'Nuit' : 'Jour';
         try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
-        if (!landCustomized) document.getElementById('color-land').value = dark ? LAND_BY_THEME.dark : LAND_BY_THEME.light;
+        document.getElementById('color-land').value = dark ? invertHex(landLight) : landLight;
+        document.getElementById('color-road').value = dark ? invertHex(roadLight) : roadLight;
         if (!waterCustomized) document.getElementById('color-water').value = dark ? WATER_BY_THEME.dark : WATER_BY_THEME.light;
-        if (!roadCustomized) document.getElementById('color-road').value = dark ? ROAD_BY_THEME.dark : ROAD_BY_THEME.light;
         updateColors();
     }
     (function initTheme() {
@@ -734,17 +781,17 @@
         if (saved === 'off') document.body.classList.add('no-grid');
     })();
 
-    // --- SECTION GROUPES REPLIABLE (pour ne pas allonger le panneau quand il y en a beaucoup) ---
-    function toggleGroupsCollapse() {
-        const collapsed = document.getElementById('groups-body').classList.toggle('collapsed');
-        document.getElementById('groups-h3').classList.toggle('collapsed', collapsed);
-        try { localStorage.setItem('cm-groups-collapsed', collapsed ? '1' : '0'); } catch(e) {}
+    // --- MENUS REPLIABLES (chaque section du panneau, pour ne pas l'allonger inutilement) ---
+    function toggleSection(id) {
+        const collapsed = document.getElementById(id + '-body').classList.toggle('collapsed');
+        document.getElementById(id + '-h3').classList.toggle('collapsed', collapsed);
+        try { localStorage.setItem('cm-collapsed-' + id, collapsed ? '1' : '0'); } catch(e) {}
     }
-    (function initGroupsCollapse() {
+    ['nav', 'style', 'groups', 'logos', 'arrows', 'video'].forEach(id => {
         let saved = '0';
-        try { saved = localStorage.getItem('cm-groups-collapsed') || '0'; } catch(e) {}
-        if (saved === '1') toggleGroupsCollapse();
-    })();
+        try { saved = localStorage.getItem('cm-collapsed-' + id) || '0'; } catch(e) {}
+        if (saved === '1') toggleSection(id);
+    });
 
     // --- NAVIGATION ---
     async function searchLocation() {
@@ -862,16 +909,28 @@
         `;
         const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 
-        // Survol du point (zone élargie, pas juste le pixel du point) : aperçu temporaire du logo
-        // s'il est masqué (uniquement si le toggle SURVOL est actif)
+        // Survol : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif).
+        // Deux cibles de survol : la zone élargie autour du point, ET le texte (souvent plus facile à
+        // viser, et c'est lui qui se déplace avec le logo quand la physique anti-collision l'écarte).
+        // Un petit délai en sortie évite un clignotement quand la souris passe de l'un à l'autre.
+        let hoverLeaveTimer = null;
         const hoverZone = elBack.querySelector('.marker-hover-zone');
-        hoverZone.addEventListener('mouseenter', () => {
+        const labelEl = elFront.querySelector('.marker-label');
+        const onHoverEnter = () => {
             if (!hoverReveal) return;
+            clearTimeout(hoverLeaveTimer);
             elFront.querySelector('.marker-image').classList.add('hover-peek');
-        });
-        hoverZone.addEventListener('mouseleave', () => {
-            elFront.querySelector('.marker-image').classList.remove('hover-peek');
-        });
+        };
+        const onHoverLeave = () => {
+            clearTimeout(hoverLeaveTimer);
+            hoverLeaveTimer = setTimeout(() => {
+                elFront.querySelector('.marker-image').classList.remove('hover-peek');
+            }, 180);
+        };
+        hoverZone.addEventListener('mouseenter', onHoverEnter);
+        hoverZone.addEventListener('mouseleave', onHoverLeave);
+        labelEl.addEventListener('mouseenter', onHoverEnter);
+        labelEl.addEventListener('mouseleave', onHoverLeave);
 
         markers.push({
             id: nextId(),
@@ -883,7 +942,8 @@
             size: logoSize,
             groupId: gid,
             logoVisible: true,
-            textVisible: true
+            textVisible: true,
+            pointVisible: true
         });
         updateMarkerUI();
     }
@@ -901,23 +961,40 @@
         });
     }
 
+    // Repli individuel de chaque section de groupe dans la liste des repères
+    let collapsedMarkerSections = new Set();
+    function toggleMarkerGroupSection(key) {
+        if (collapsedMarkerSections.has(key)) collapsedMarkerSections.delete(key);
+        else collapsedMarkerSections.add(key);
+        updateMarkerUI();
+    }
+
     function updateMarkerUI() {
         const list = document.getElementById('markers-list');
         list.innerHTML = '';
         let lastGroupId = '__none__';
+        let currentBody = null;
         markerDisplayOrder().forEach(i => {
             const m = markers[i];
 
-            // En-tête de section quand on change de groupe, pour s'y retrouver
+            // En-tête de section (repliable) quand on change de groupe, pour s'y retrouver
             if (m.groupId !== lastGroupId) {
                 lastGroupId = m.groupId;
                 const g = getGroup(m.groupId);
+                const sectionKey = g ? g.id : '__none__';
+                const isCollapsed = collapsedMarkerSections.has(sectionKey);
+
                 const head = document.createElement('div');
-                head.className = 'group-divider';
-                head.innerHTML = g
+                head.className = 'group-divider' + (isCollapsed ? ' collapsed' : '');
+                head.onclick = () => toggleMarkerGroupSection(sectionKey);
+                head.innerHTML = (g
                     ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
-                    : `— SANS GROUPE —`;
+                    : `— SANS GROUPE —`) + `<span class="gd-chevron">&#9660;</span>`;
                 list.appendChild(head);
+
+                currentBody = document.createElement('div');
+                currentBody.className = 'group-section-body' + (isCollapsed ? ' collapsed' : '');
+                list.appendChild(currentBody);
             }
 
             const div = document.createElement('div');
@@ -926,6 +1003,7 @@
 
             const logoClass = m.logoVisible ? 'toggle-btn' : 'toggle-btn inactive';
             const textClass = m.textVisible ? 'toggle-btn' : 'toggle-btn inactive';
+            const pointClass = (m.pointVisible !== false) ? 'toggle-btn' : 'toggle-btn inactive';
             const groupOpts = ['<option value="">— Aucun —</option>']
                 .concat(groups.map(g => `<option value="${g.id}" ${m.groupId === g.id ? 'selected' : ''}>${escHtml(g.name)}</option>`)).join('');
 
@@ -938,6 +1016,7 @@
                     <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">&#8595;</button>
                     <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">&#128444;</button>
                     <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">T</button>
+                    <button class="mini-btn ${pointClass}" onclick="togglePoint(${i})" title="Afficher/Masquer le Point">&#128205;</button>
                     <button class="mini-btn del-btn" onclick="removeMarker(${i})">&#10006;</button>
                 </div>
                 <div class="size-row">
@@ -952,7 +1031,7 @@
                     <select onchange="assignMarkerGroup(${i}, this.value)">${groupOpts}</select>
                 </div>
             `;
-            list.appendChild(div);
+            currentBody.appendChild(div);
         });
         const st = document.getElementById('footer-status');
         if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
@@ -1013,6 +1092,37 @@
     function toggleText(index) {
         markers[index].textVisible = !markers[index].textVisible;
         refreshMarkerVisibility(markers[index]);
+        updateMarkerUI();
+    }
+
+    function togglePoint(index) {
+        markers[index].pointVisible = (markers[index].pointVisible === false);
+        refreshMarkerVisibility(markers[index]);
+        updateMarkerUI();
+    }
+
+    // --- TOGGLES GROUPÉS (tous les marqueurs, ou tous ceux d'un groupe) ---
+    // Bascule intelligente : si au moins un est visible, on masque tout ; sinon on montre tout.
+    function toggleAllLogos() {
+        const anyOn = markers.some(m => m.logoVisible);
+        markers.forEach(m => { m.logoVisible = !anyOn; refreshMarkerVisibility(m); });
+        updateMarkerUI();
+    }
+    function toggleAllPoints() {
+        const anyOn = markers.some(m => m.pointVisible !== false);
+        markers.forEach(m => { m.pointVisible = !anyOn; refreshMarkerVisibility(m); });
+        updateMarkerUI();
+    }
+    function toggleGroupLogos(groupId) {
+        const members = markers.filter(m => m.groupId === groupId);
+        const anyOn = members.some(m => m.logoVisible);
+        members.forEach(m => { m.logoVisible = !anyOn; refreshMarkerVisibility(m); });
+        updateMarkerUI();
+    }
+    function toggleGroupPoints(groupId) {
+        const members = markers.filter(m => m.groupId === groupId);
+        const anyOn = members.some(m => m.pointVisible !== false);
+        members.forEach(m => { m.pointVisible = !anyOn; refreshMarkerVisibility(m); });
         updateMarkerUI();
     }
 
@@ -1219,13 +1329,14 @@
                 size: m.size || DEFAULT_LOGO_SIZE,
                 logoVisible: m.logoVisible,
                 textVisible: m.textVisible,
+                pointVisible: m.pointVisible !== false,
                 groupIndex: m.groupId ? groups.findIndex(g => g.id === m.groupId) : -1
             })),
             arrows: arrows.map(a => ({
                 from: a.from.map(id => markerIndexById(id)).filter(i => i >= 0),
                 to:   a.to.map(id => markerIndexById(id)).filter(i => i >= 0),
                 curved: a.curved, color: a.color, opacity: a.opacity, width: a.width,
-                echo: a.echo, mover: a.mover, keyframe: a.keyframe
+                echo: a.echo, mover: a.mover, moverSpeed: a.moverSpeed, keyframe: a.keyframe
             }))
         };
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
@@ -1249,10 +1360,12 @@
             document.getElementById('color-land').value = data.colors.land;
             document.getElementById('color-water').value = data.colors.water;
             document.getElementById('color-road').value = data.colors.road || '#ffffff';
-            // Le fichier contient des couleurs Sol/Eau/Routes explicites : ne plus les écraser au toggle Jour/Nuit
-            landCustomized = true;
+            // Affiche exactement ce qui a été sauvé, et retrouve la "référence Jour" pour que le
+            // prochain toggle Jour/Nuit reste cohérent (dé-inverse si le fichier a été sauvé en thème Nuit).
+            const wasDark = document.body.classList.contains('theme-dark');
+            landLight = wasDark ? invertHex(data.colors.land) : data.colors.land;
+            roadLight = wasDark ? invertHex(data.colors.road || '#ffffff') : (data.colors.road || '#ffffff');
             waterCustomized = true;
-            roadCustomized = true;
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
@@ -1271,6 +1384,7 @@
                 const lastIdx = markers.length - 1;
                 markers[lastIdx].logoVisible = (m.logoVisible !== undefined) ? m.logoVisible : true;
                 markers[lastIdx].textVisible = (m.textVisible !== undefined) ? m.textVisible : true;
+                markers[lastIdx].pointVisible = (m.pointVisible !== undefined) ? m.pointVisible : true;
                 refreshMarkerVisibility(markers[lastIdx]);
             });
             updateGroupUI();
@@ -1289,6 +1403,7 @@
                 width: a.width || 3,
                 echo: !!a.echo,
                 mover: !!a.mover,
+                moverSpeed: a.moverSpeed || 1,
                 keyframe: (a.keyframe != null) ? a.keyframe : null,
                 drawn: true
             }));
@@ -1321,7 +1436,7 @@
         arrows.push({
             id: nextId(), from: [], to: [],
             curved: false, color: currentAccent(), opacity: 0.9, width: 3,
-            echo: false, mover: false, keyframe: null, drawn: true
+            echo: false, mover: false, moverSpeed: 1, keyframe: null, drawn: true
         });
         updateArrowUI();
         renderArrows();
@@ -1406,6 +1521,10 @@
                     <label><input type="checkbox" ${a.curved ? 'checked' : ''} onchange="setArrowField('${a.id}','curved',this.checked)"> Courbe</label>
                     <label><input type="checkbox" ${a.echo ? 'checked' : ''} onchange="setArrowField('${a.id}','echo',this.checked)"> &Eacute;cho</label>
                     <label><input type="checkbox" ${a.mover ? 'checked' : ''} onchange="setArrowField('${a.id}','mover',this.checked)"> Point mobile</label>
+                </div>
+                <div class="af-row">
+                    <span>Vitesse pt.</span>
+                    <input type="range" min="0.2" max="4" step="0.1" value="${a.moverSpeed || 1}" oninput="setArrowField('${a.id}','moverSpeed',parseFloat(this.value))">
                 </div>
                 <div class="af-row">
                     <span>&Eacute;paiss.</span>
@@ -1612,7 +1731,7 @@
                 const main = seg.children[3], mover = seg.children[5];
                 const L = main.getTotalLength();
                 if (!L) return;
-                let ph = (parseFloat(mover.dataset.ph || '0') + 0.006) % 1;
+                let ph = (parseFloat(mover.dataset.ph || '0') + 0.006 * (a.moverSpeed || 1)) % 1;
                 mover.dataset.ph = ph;
                 const pt = main.getPointAtLength(ph * L);
                 mover.setAttribute('cx', pt.x);
