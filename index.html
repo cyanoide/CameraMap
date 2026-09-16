@@ -96,9 +96,8 @@
             position: absolute; inset: 0; z-index: 6; pointer-events: none;
             background: radial-gradient(ellipse at center, transparent 55%, var(--vignette) 100%);
         }
-        /* Toggle effet CRT (scanlines + vignette) */
-        body.no-crt #overlay-scanlines,
-        body.no-crt #overlay-vignette { display: none; }
+        /* Toggle scanlines (la vignette reste, discrète) */
+        body.no-scanlines #overlay-scanlines { display: none; }
 
         /* ============================================================
            PANNEAU DE CONTRÔLE
@@ -203,7 +202,7 @@
            MARQUEURS (sur la carte)
            ============================================================ */
         .marker-back-container { width: 0; height: 0; overflow: visible; position: relative; z-index: 1 !important; }
-        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; }
+        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; cursor: pointer; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
         .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; }
@@ -215,6 +214,8 @@
         .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: none; transition: opacity 0.3s; font-family: var(--font-main); }
 
         .hidden { opacity: 0 !important; visibility: hidden; }
+        /* Aperçu au survol du point (activable via le toggle SURVOL) */
+        .marker-image.hidden.hover-peek { opacity: .92 !important; visibility: visible !important; }
         .display-none { display: none !important; }
 
         /* --- LISTE ITEMS --- */
@@ -267,6 +268,12 @@
             width: 10px; height: 10px; border-radius: 50%; flex: none;
             border: 1px solid rgba(255,255,255,.5);
         }
+        .group-divider {
+            display: flex; align-items: center; gap: 6px;
+            margin: 10px 0 4px; font-family: var(--font-mono); font-size: 9px;
+            letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+        }
+        .group-divider:first-child { margin-top: 0; }
 
         /* ============================================================
            FLÈCHES (overlay SVG au-dessus de la carte)
@@ -315,6 +322,26 @@
         }
         .arrow-fiche select:focus { border-color: var(--accent); }
         .arrow-fiche select option:checked { background: var(--accent); color: var(--bg); }
+        .arrow-fiche .af-search {
+            width: 100%; box-sizing: border-box; background: var(--bg-field); color: var(--text);
+            border: 1px solid var(--border); border-radius: 2px; padding: 4px 6px;
+            font-family: var(--font-mono); font-size: 10px; outline: none;
+        }
+        .arrow-fiche .af-search:focus { border-color: var(--accent); }
+        .arrow-fiche .af-picker {
+            max-height: 96px; overflow-y: auto; border: 1px solid var(--border);
+            border-radius: 2px; background: var(--bg-field);
+        }
+        .arrow-fiche .af-picker::-webkit-scrollbar { width: 3px; }
+        .arrow-fiche .af-picker::-webkit-scrollbar-thumb { background: var(--border-strong); }
+        .arrow-fiche .af-pick-row {
+            padding: 4px 7px; font-family: var(--font-mono); font-size: 11px;
+            cursor: pointer; border-bottom: 1px solid var(--border);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .arrow-fiche .af-pick-row:last-child { border-bottom: none; }
+        .arrow-fiche .af-pick-row:hover { background: var(--item-hover); }
+        .arrow-fiche .af-pick-row.sel { background: var(--item-selected); color: var(--accent); font-weight: 600; }
         .arrow-fiche .af-row {
             display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
             font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px;
@@ -340,7 +367,8 @@
 
         #hide-ui-btn { top: 20px; right: 24px; }
         #theme-toggle { top: 62px; right: 24px; }
-        #crt-toggle { top: 104px; right: 24px; }
+        #scanlines-toggle { top: 104px; right: 24px; }
+        #hover-toggle { top: 146px; right: 24px; }
         .hud-btn .track {
             width: 34px; height: 16px; border: 1px solid var(--accent); border-radius: 2px;
             position: relative; opacity: .8; flex: none;
@@ -350,8 +378,9 @@
             background: var(--accent); border-radius: 1px; transition: left .25s ease;
         }
         body.theme-dark #theme-toggle .thumb { left: 18px; }
-        #crt-toggle .thumb { left: 18px; }
-        body.no-crt #crt-toggle .thumb { left: 1px; }
+        #scanlines-toggle .thumb { left: 18px; }
+        body.no-scanlines #scanlines-toggle .thumb { left: 1px; }
+        body.hover-reveal #hover-toggle .thumb { left: 18px; }
 
         .footer-hud {
             margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border);
@@ -381,9 +410,13 @@
     <span class="track"><span class="thumb"></span></span>
     <span id="theme-label">Jour</span>
 </button>
-<button id="crt-toggle" class="hud-btn" onclick="toggleCRT()">
+<button id="scanlines-toggle" class="hud-btn" onclick="toggleScanlines()">
     <span class="track"><span class="thumb"></span></span>
-    <span>CRT</span>
+    <span>Scan</span>
+</button>
+<button id="hover-toggle" class="hud-btn" onclick="toggleHoverReveal()" title="Survol d'un point : afficher son logo même s'il est masqué">
+    <span class="track"><span class="thumb"></span></span>
+    <span>Survol</span>
 </button>
 
 <div id="ui-panel">
@@ -625,15 +658,27 @@
         if (saved === 'dark') toggleTheme();
     })();
 
-    // --- EFFET CRT (scanlines + vignette) ---
-    function toggleCRT() {
-        const off = document.body.classList.toggle('no-crt');
-        try { localStorage.setItem('cm-crt', off ? 'off' : 'on'); } catch(e) {}
+    // --- SCANLINES ---
+    function toggleScanlines() {
+        const off = document.body.classList.toggle('no-scanlines');
+        try { localStorage.setItem('cm-scanlines', off ? 'off' : 'on'); } catch(e) {}
     }
-    (function initCRT() {
+    (function initScanlines() {
         let saved = 'on';
-        try { saved = localStorage.getItem('cm-crt') || 'on'; } catch(e) {}
-        if (saved === 'off') document.body.classList.add('no-crt');
+        try { saved = localStorage.getItem('cm-scanlines') || 'on'; } catch(e) {}
+        if (saved === 'off') document.body.classList.add('no-scanlines');
+    })();
+
+    // --- SURVOL : afficher le logo masqué au survol du point (désactivé par défaut) ---
+    let hoverReveal = false;
+    function toggleHoverReveal() {
+        hoverReveal = document.body.classList.toggle('hover-reveal');
+        try { localStorage.setItem('cm-hover', hoverReveal ? 'on' : 'off'); } catch(e) {}
+    }
+    (function initHoverReveal() {
+        let saved = 'off';
+        try { saved = localStorage.getItem('cm-hover') || 'off'; } catch(e) {}
+        if (saved === 'on') toggleHoverReveal();
     })();
 
     // --- NAVIGATION ---
@@ -752,6 +797,16 @@
         `;
         const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 
+        // Survol du point : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif)
+        const dotEl = elBack.querySelector('.marker-dot');
+        dotEl.addEventListener('mouseenter', () => {
+            if (!hoverReveal) return;
+            elFront.querySelector('.marker-image').classList.add('hover-peek');
+        });
+        dotEl.addEventListener('mouseleave', () => {
+            elFront.querySelector('.marker-image').classList.remove('hover-peek');
+        });
+
         markers.push({
             id: nextId(),
             markerBack: markerBack,
@@ -767,10 +822,38 @@
         updateMarkerUI();
     }
 
+    // Ordre d'affichage : par groupe (dans l'ordre des Groupes ci-dessus, non-groupés à la fin),
+    // puis alphabétique dans chaque groupe. Ne change PAS l'ordre réel de `markers` (qui pilote le z-index).
+    function markerDisplayOrder() {
+        const groupRank = new Map(groups.map((g, i) => [g.id, i]));
+        return markers.map((m, i) => i).sort((ia, ib) => {
+            const a = markers[ia], b = markers[ib];
+            const ra = a.groupId && groupRank.has(a.groupId) ? groupRank.get(a.groupId) : Infinity;
+            const rb = b.groupId && groupRank.has(b.groupId) ? groupRank.get(b.groupId) : Infinity;
+            if (ra !== rb) return ra - rb;
+            return (a.label || '').localeCompare(b.label || '', 'fr', { sensitivity: 'base' });
+        });
+    }
+
     function updateMarkerUI() {
         const list = document.getElementById('markers-list');
         list.innerHTML = '';
-        markers.forEach((m, i) => {
+        let lastGroupId = '__none__';
+        markerDisplayOrder().forEach(i => {
+            const m = markers[i];
+
+            // En-tête de section quand on change de groupe, pour s'y retrouver
+            if (m.groupId !== lastGroupId) {
+                lastGroupId = m.groupId;
+                const g = getGroup(m.groupId);
+                const head = document.createElement('div');
+                head.className = 'group-divider';
+                head.innerHTML = g
+                    ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
+                    : `— SANS GROUPE —`;
+                list.appendChild(head);
+            }
+
             const div = document.createElement('div');
             div.className = 'list-item';
             div.style.flexWrap = 'wrap';
@@ -784,6 +867,7 @@
                 <img src="${m.img}" style="width:20px; height:20px; object-fit:contain;">
                 <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
                 <div class="action-btns">
+                    <button class="mini-btn" onclick="focusMarker(${i})" title="Centrer la carte sur ce point">&#127919;</button>
                      <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">&#8593;</button>
                     <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">&#8595;</button>
                     <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">&#128444;</button>
@@ -838,6 +922,12 @@
         markers[index] = markers[index + direction];
         markers[index + direction] = temp;
         updateMarkerUI();
+    }
+
+    // Centre la carte sur ce point, sans dézoomer si on est déjà plus proche
+    function focusMarker(index) {
+        const m = markers[index]; if (!m) return;
+        map.flyTo({ center: m.lngLat, zoom: Math.max(map.getZoom(), 13), essential: true });
     }
 
     function updateLabel(index, val) {
@@ -1127,15 +1217,35 @@
         updateArrowUI();
     }
 
-    function readMultiSelect(sel) {
-        return [...sel.options].filter(o => o.selected).map(o => o.value);
-    }
-
     function setArrowField(id, field, value) {
         const a = getArrow(id); if (!a) return;
         a[field] = value;
         if (field === 'from' || field === 'to') rebuildArrowGroup(a);
         renderArrows();
+    }
+
+    // Coche/décoche un point comme extrémité (A ou B) d'une flèche — mise à jour ciblée
+    // (ne reconstruit pas toute la liste, pour ne pas perdre le texte de recherche tapé)
+    function toggleArrowEndpoint(arrowId, field, markerId, rowEl) {
+        const a = getArrow(arrowId); if (!a) return;
+        const arr = a[field];
+        const idx = arr.indexOf(markerId);
+        if (idx >= 0) arr.splice(idx, 1); else arr.push(markerId);
+        if (rowEl) rowEl.classList.toggle('sel', arr.includes(markerId));
+        const countEl = document.getElementById('cnt_' + field + '_' + arrowId);
+        if (countEl) countEl.textContent = arr.length;
+        rebuildArrowGroup(a);
+        renderArrows();
+    }
+
+    // Filtre en direct les lignes du sélecteur de points (recherche par nom)
+    function filterArrowPicker(arrowId, field, query) {
+        const wrap = document.getElementById('picker_' + field + '_' + arrowId);
+        if (!wrap) return;
+        const q = query.trim().toLowerCase();
+        [...wrap.children].forEach(row => {
+            row.style.display = (!q || row.dataset.name.includes(q)) ? '' : 'none';
+        });
     }
 
     function updateArrowUI() {
@@ -1145,10 +1255,15 @@
             wrap.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:1px;">AUCUNE FL&Egrave;CHE</div>';
             return;
         }
-        const esc = s => String(s).replace(/</g, '&lt;');
-        const opts = markers.map(m => `<option value="${m.id}">${esc(m.label || 'Repère')}</option>`).join('');
+        const sortedMarkers = markers.map((m, i) => ({ m, i }))
+            .sort((x, y) => (x.m.label || '').localeCompare(y.m.label || '', 'fr', { sensitivity: 'base' }));
         const kfOpts = ['<option value="">Aucun</option>']
-            .concat(keyframes.map((k, i) => `<option value="${i}">${esc(k.label || ('Plan ' + (i + 1)))}</option>`)).join('');
+            .concat(keyframes.map((k, i) => `<option value="${i}">${escHtml(k.label || ('Plan ' + (i + 1)))}</option>`)).join('');
+
+        const pickerRows = (a, field) => sortedMarkers.map(({ m }) => `
+            <div class="af-pick-row ${a[field].includes(m.id) ? 'sel' : ''}" data-name="${escHtml((m.label || 'Repère').toLowerCase())}"
+                 onclick="toggleArrowEndpoint('${a.id}','${field}','${m.id}', this)">${escHtml(m.label || 'Repère')}</div>
+        `).join('');
 
         wrap.innerHTML = arrows.map((a, i) => `
             <div class="arrow-fiche" data-id="${a.id}">
@@ -1160,12 +1275,14 @@
                 </div>
                 <div class="af-cols">
                     <div class="af-col">
-                        <label class="af-lbl">D&eacute;part (A)</label>
-                        <select multiple size="3" onchange="setArrowField('${a.id}','from',readMultiSelect(this))">${opts}</select>
+                        <label class="af-lbl">D&eacute;part (A) &middot; <span id="cnt_from_${a.id}">${a.from.length}</span></label>
+                        <input type="text" class="af-search" placeholder="Rechercher..." oninput="filterArrowPicker('${a.id}','from',this.value)">
+                        <div class="af-picker" id="picker_from_${a.id}">${pickerRows(a, 'from')}</div>
                     </div>
                     <div class="af-col">
-                        <label class="af-lbl">Arriv&eacute;e (B)</label>
-                        <select multiple size="3" onchange="setArrowField('${a.id}','to',readMultiSelect(this))">${opts}</select>
+                        <label class="af-lbl">Arriv&eacute;e (B) &middot; <span id="cnt_to_${a.id}">${a.to.length}</span></label>
+                        <input type="text" class="af-search" placeholder="Rechercher..." oninput="filterArrowPicker('${a.id}','to',this.value)">
+                        <div class="af-picker" id="picker_to_${a.id}">${pickerRows(a, 'to')}</div>
                     </div>
                 </div>
                 <div class="af-row">
@@ -1186,14 +1303,12 @@
             </div>
         `).join('');
 
-        // Restaure les sélections après re-render du HTML
+        // Restaure la sélection du keyframe après re-render du HTML
         arrows.forEach(a => {
             const fiche = wrap.querySelector('.arrow-fiche[data-id="' + a.id + '"]');
             if (!fiche) return;
-            const sels = fiche.querySelectorAll('select');
-            [...sels[0].options].forEach(o => o.selected = a.from.includes(o.value));
-            [...sels[1].options].forEach(o => o.selected = a.to.includes(o.value));
-            sels[2].value = (a.keyframe != null) ? String(a.keyframe) : '';
+            const kfSel = fiche.querySelector('.af-row select');
+            if (kfSel) kfSel.value = (a.keyframe != null) ? String(a.keyframe) : '';
         });
 
         arrows.forEach(a => rebuildArrowGroup(a));
@@ -1217,17 +1332,6 @@
             });
         });
         return pairs;
-    }
-
-    function pathD(a, s, e) {
-        if (!a.curved) return `M ${s.x} ${s.y} L ${e.x} ${e.y}`;
-        const mx = (s.x + e.x) / 2, my = (s.y + e.y) / 2;
-        const dx = e.x - s.x, dy = e.y - s.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const off = Math.min(len * 0.22, 130);
-        const cx = mx + (-dy / len) * off;
-        const cy = my + (dx / len) * off;
-        return `M ${s.x} ${s.y} Q ${cx} ${cy} ${e.x} ${e.y}`;
     }
 
     // Crée/ajuste la structure SVG d'une flèche (un <g> -> N segments)
@@ -1269,32 +1373,55 @@
                 seg.style.display = '';
                 const s = anchorScreen(pair[0]);
                 const e = anchorScreen(pair[1]);
-                const d = pathD(a, s, e);
                 const [e1, e2, e3, main, head, mover] = seg.children;
 
-                main.setAttribute('d', d);
+                // Géométrie complète, jusqu'au point B exact
+                let cx, cy;
+                if (a.curved) {
+                    const mx = (s.x + e.x) / 2, my = (s.y + e.y) / 2;
+                    const dx = e.x - s.x, dy = e.y - s.y;
+                    const len = Math.hypot(dx, dy) || 1;
+                    const off = Math.min(len * 0.22, 130);
+                    cx = mx + (-dy / len) * off;
+                    cy = my + (dx / len) * off;
+                }
+                const fullD = a.curved
+                    ? `M ${s.x} ${s.y} Q ${cx} ${cy} ${e.x} ${e.y}`
+                    : `M ${s.x} ${s.y} L ${e.x} ${e.y}`;
+
+                // Tangente EXACTE au point d'arrivée (dérivée analytique, pas d'approximation
+                // via getPointAtLength qui pouvait légèrement décaler la pointe du bout de ligne)
+                const ang = a.curved
+                    ? Math.atan2(e.y - cy, e.x - cx)
+                    : Math.atan2(e.y - s.y, e.x - s.x);
+
+                const hs = 9 + a.width * 2.6; // longueur de la pointe
+                // On raccourcit le trait visible pour qu'il s'arrête sous le triangle :
+                // sinon son extrémité arrondie (stroke-linecap:round) dépasse de la pointe.
+                const dist = Math.hypot(e.x - s.x, e.y - s.y);
+                const retreat = Math.min(hs * 0.8, dist * 0.4);
+                const trimX = e.x - retreat * Math.cos(ang), trimY = e.y - retreat * Math.sin(ang);
+                const drawD = a.curved
+                    ? `M ${s.x} ${s.y} Q ${cx} ${cy} ${trimX} ${trimY}`
+                    : `M ${s.x} ${s.y} L ${trimX} ${trimY}`;
+
+                main.setAttribute('d', drawD);
                 main.setAttribute('stroke', a.color);
                 main.setAttribute('stroke-width', a.width);
                 if (a.drawn) main.style.opacity = a.opacity;
 
                 [e1, e2, e3].forEach(el => {
-                    el.setAttribute('d', d);
+                    el.setAttribute('d', fullD);
                     el.setAttribute('stroke', a.color);
                     el.style.display = (a.echo && a.drawn) ? '' : 'none';
                 });
 
-                const L = main.getTotalLength();
-                if (L > 4) {
-                    const pEnd = main.getPointAtLength(L);
-                    const pPrev = main.getPointAtLength(Math.max(0, L - 1));
-                    const ang = Math.atan2(pEnd.y - pPrev.y, pEnd.x - pPrev.x);
-                    const hs = 9 + a.width * 2.6;
-                    const p1x = pEnd.x - hs * Math.cos(ang - 0.42), p1y = pEnd.y - hs * Math.sin(ang - 0.42);
-                    const p2x = pEnd.x - hs * Math.cos(ang + 0.42), p2y = pEnd.y - hs * Math.sin(ang + 0.42);
-                    head.setAttribute('d', `M ${pEnd.x} ${pEnd.y} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`);
-                    head.setAttribute('fill', a.color);
-                    if (a.drawn) head.style.opacity = a.opacity;
-                }
+                // Pointe : apex exactement sur le point B, orientée selon la tangente réelle
+                const p1x = e.x - hs * Math.cos(ang - 0.42), p1y = e.y - hs * Math.sin(ang - 0.42);
+                const p2x = e.x - hs * Math.cos(ang + 0.42), p2y = e.y - hs * Math.sin(ang + 0.42);
+                head.setAttribute('d', `M ${e.x} ${e.y} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`);
+                head.setAttribute('fill', a.color);
+                if (a.drawn) head.style.opacity = a.opacity;
 
                 mover.setAttribute('fill', a.color);
                 mover.style.color = a.color;
