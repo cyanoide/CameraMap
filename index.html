@@ -107,8 +107,7 @@
             background: var(--bg-panel);
             color: var(--text);
             padding: 22px 20px 24px;
-            border: 1px solid var(--border);
-            border-left: 2px solid var(--accent);
+            border: 1px solid var(--border-strong);
             border-radius: 2px;
             backdrop-filter: blur(14px) saturate(1.3);
             -webkit-backdrop-filter: blur(14px) saturate(1.3);
@@ -215,13 +214,16 @@
         .marker-hover-zone { width: 64px; height: 64px; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 11; cursor: pointer; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
-        .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-        .marker-content-wrapper { will-change: transform; transition: transform 0.1s linear; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+        .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; pointer-events: none; }
+        /* Le logo et le texte sont positionnés en absolu depuis ce point (0,0) = le repère géographique,
+           pour pouvoir dynamiquement mettre l'un ou l'autre "au plus près" (bottom:0) selon ce qui est
+           affiché — voir refreshMarkerVisibility(). */
+        .marker-content-wrapper { position: absolute; bottom: 0; left: 0; width: 0; height: 0; will-change: transform; transition: transform 0.1s linear; pointer-events: none; }
 
-        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; pointer-events: auto; }
-        .marker-image:hover { transform: scale(1.15); z-index: 9999 !important; }
+        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, bottom .25s ease, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 20; pointer-events: auto; }
+        .marker-image:hover { transform: translateX(-50%) scale(1.15); z-index: 9999 !important; }
 
-        .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: auto; cursor: pointer; transition: opacity 0.3s; font-family: var(--font-main); }
+        .marker-label { font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 30; pointer-events: auto; cursor: pointer; transition: opacity 0.3s, bottom .25s ease; font-family: var(--font-main); }
 
         .hidden { opacity: 0 !important; visibility: hidden; }
         /* Aperçu au survol du point (activable via le toggle SURVOL) */
@@ -600,8 +602,15 @@
         const imgEl = el.querySelector('.marker-image');
         const txtEl = el.querySelector('.marker-label');
         const gv = groupIsVisible(m);
-        imgEl.classList.toggle('hidden', !(m.logoVisible && gv));
+        const logoShown = m.logoVisible && gv;
+        imgEl.classList.toggle('hidden', !logoShown);
         txtEl.classList.toggle('hidden', !(m.textVisible && gv));
+
+        // Le logo est prioritaire pour être au plus près du point ; s'il n'est pas affiché,
+        // le texte prend sa place (transition CSS fluide sur `bottom`, cf. .marker-label / .marker-image).
+        const size = m.size || DEFAULT_LOGO_SIZE;
+        imgEl.style.bottom = '0px';
+        txtEl.style.bottom = logoShown ? (size + 6) + 'px' : '0px';
 
         // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
         const backEl = m.markerBack.getElement();
@@ -707,25 +716,54 @@
     }
 
     // --- THEME ---
-    // Sol et Routes en thème Nuit = l'inverse colorimétrique de leur valeur en thème Jour
-    // (demandé explicitement : "l'inverse des couleurs de route et sol... pour directement marcher").
-    // L'eau, elle, suit un simple préréglage sombre dédié : l'inverse d'un bleu clair donne un
-    // orange criard, pas un océan sombre plausible.
+    // Sol et Routes en thème Nuit = version assombrie (même teinte, luminosité réduite) de leur
+    // couleur en thème Jour — PAS l'inverse colorimétrique (ça donnait des teintes qui n'ont plus
+    // rien à voir). Le sol reste toujours plus sombre que les routes, pour rester lisible.
+    // L'eau suit un simple préréglage sombre dédié (un bleu clair assombri finit trop terne).
     let landLight = '#e0e0e0';
     let roadLight = '#ffffff';
     let waterCustomized = false;
     const WATER_BY_THEME = { light: '#a0cfdf', dark: '#06222c' };
+    const NIGHT_LAND_L = 0.10;  // luminosité cible du sol en thème Nuit
+    const NIGHT_ROAD_L = 0.32;  // ... et des routes, volontairement plus claire que le sol
 
-    function invertHex(hex) {
+    function hexToHsl(hex) {
         hex = (hex || '#808080').replace('#', '');
         if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-        const num = parseInt(hex, 16) || 0;
-        const r = 255 - ((num >> 16) & 255), g = 255 - ((num >> 8) & 255), b = 255 - (num & 255);
-        return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+        const r = parseInt(hex.slice(0, 2), 16) / 255, g = parseInt(hex.slice(2, 4), 16) / 255, b = parseInt(hex.slice(4, 6), 16) / 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0; const l = (max + min) / 2;
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h /= 6;
+        }
+        return { h, s, l };
+    }
+    function hslToHex(h, s, l) {
+        const hue2rgb = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q - p) * 6 * t; if (t < 1/2) return q; if (t < 2/3) return p + (q - p) * (2/3 - t) * 6; return p; };
+        let r, g, b;
+        if (s === 0) { r = g = b = l; }
+        else {
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
+        }
+        const toHex = v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
+        return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+    // Assombrit une couleur pour le thème Nuit en gardant sa teinte (juste la luminosité change,
+    // et la saturation est légèrement bridée pour un rendu "dark mode" plus sobre).
+    function darkenForNight(hex, targetL) {
+        const { h, s } = hexToHsl(hex);
+        return hslToHex(h, Math.min(s, 0.35), targetL);
     }
 
     // Mémorise la couleur "de référence" (thème Jour) quand on l'édite en thème Jour,
-    // pour pouvoir toujours en dériver l'inverse quand on repasse en thème Nuit.
+    // pour pouvoir toujours en dériver la version sombre quand on repasse en thème Nuit.
     function onLightColorInput(key, value) {
         if (document.body.classList.contains('theme-dark')) return;
         if (key === 'land') landLight = value; else if (key === 'road') roadLight = value;
@@ -736,8 +774,8 @@
         document.body.classList.toggle('theme-light', !dark);
         document.getElementById('theme-label').innerText = dark ? 'Nuit' : 'Jour';
         try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
-        document.getElementById('color-land').value = dark ? invertHex(landLight) : landLight;
-        document.getElementById('color-road').value = dark ? invertHex(roadLight) : roadLight;
+        document.getElementById('color-land').value = dark ? darkenForNight(landLight, NIGHT_LAND_L) : landLight;
+        document.getElementById('color-road').value = dark ? darkenForNight(roadLight, NIGHT_ROAD_L) : roadLight;
         if (!waterCustomized) document.getElementById('color-water').value = dark ? WATER_BY_THEME.dark : WATER_BY_THEME.light;
         updateColors();
     }
@@ -828,25 +866,33 @@
                 m.forceX *= 0.85; m.forceY *= 0.85;
             });
 
-            for (let i = 0; i < markers.length; i++) {
-                if(!isMarkerActive(markers[i])) continue;
+            // Plusieurs passes de relaxation (Gauss-Seidel) : avec un seul passage, 3+ logos qui se
+            // chevauchent en même temps (typiquement en dézoomant, où beaucoup de repères se
+            // rapprochent à l'écran) ne convergent jamais et "se battent" d'une frame à l'autre.
+            // Plusieurs petites corrections successives, prenant en compte les précédentes dans la
+            // même frame, stabilisent le résultat.
+            const COLLISION_ITERATIONS = 4;
+            for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
+                for (let i = 0; i < markers.length; i++) {
+                    if(!isMarkerActive(markers[i])) continue;
 
-                for (let j = i + 1; j < markers.length; j++) {
-                    if(!isMarkerActive(markers[j])) continue;
+                    for (let j = i + 1; j < markers.length; j++) {
+                        if(!isMarkerActive(markers[j])) continue;
 
-                    let m1 = markers[i]; let m2 = markers[j];
-                    // Rayon de collision proportionnel à la taille des logos
-                    const RADIUS = ((m1.size || DEFAULT_LOGO_SIZE) + (m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
-                    let dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
-                    let dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
-                    let dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist < RADIUS && dist > 0) {
-                        let overlap = RADIUS - dist;
-                        let angle = Math.atan2(dy, dx);
-                        let moveX = Math.cos(angle) * overlap * 0.5;
-                        let moveY = Math.sin(angle) * overlap * 0.5;
-                        m1.forceX -= moveX; m1.forceY -= moveY;
-                        m2.forceX += moveX; m2.forceY += moveY;
+                        let m1 = markers[i]; let m2 = markers[j];
+                        // Rayon de collision proportionnel à la taille des logos
+                        const RADIUS = ((m1.size || DEFAULT_LOGO_SIZE) + (m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
+                        let dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
+                        let dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < RADIUS && dist > 0) {
+                            let overlap = RADIUS - dist;
+                            let angle = Math.atan2(dy, dx);
+                            let moveX = Math.cos(angle) * overlap * 0.5 / COLLISION_ITERATIONS;
+                            let moveY = Math.sin(angle) * overlap * 0.5 / COLLISION_ITERATIONS;
+                            m1.forceX -= moveX; m1.forceY -= moveY;
+                            m2.forceX += moveX; m2.forceY += moveY;
+                        }
                     }
                 }
             }
@@ -909,30 +955,7 @@
         `;
         const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 
-        // Survol : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif).
-        // Deux cibles de survol : la zone élargie autour du point, ET le texte (souvent plus facile à
-        // viser, et c'est lui qui se déplace avec le logo quand la physique anti-collision l'écarte).
-        // Un petit délai en sortie évite un clignotement quand la souris passe de l'un à l'autre.
-        let hoverLeaveTimer = null;
-        const hoverZone = elBack.querySelector('.marker-hover-zone');
-        const labelEl = elFront.querySelector('.marker-label');
-        const onHoverEnter = () => {
-            if (!hoverReveal) return;
-            clearTimeout(hoverLeaveTimer);
-            elFront.querySelector('.marker-image').classList.add('hover-peek');
-        };
-        const onHoverLeave = () => {
-            clearTimeout(hoverLeaveTimer);
-            hoverLeaveTimer = setTimeout(() => {
-                elFront.querySelector('.marker-image').classList.remove('hover-peek');
-            }, 180);
-        };
-        hoverZone.addEventListener('mouseenter', onHoverEnter);
-        hoverZone.addEventListener('mouseleave', onHoverLeave);
-        labelEl.addEventListener('mouseenter', onHoverEnter);
-        labelEl.addEventListener('mouseleave', onHoverLeave);
-
-        markers.push({
+        const markerObj = {
             id: nextId(),
             markerBack: markerBack,
             markerFront: markerFront,
@@ -944,7 +967,38 @@
             logoVisible: true,
             textVisible: true,
             pointVisible: true
-        });
+        };
+
+        // Survol : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif).
+        // Deux cibles de survol : la zone élargie autour du point, ET le texte (souvent plus facile à
+        // viser, et c'est lui qui se déplace avec le logo quand la physique anti-collision l'écarte).
+        // Un petit délai en sortie évite un clignotement quand la souris passe de l'un à l'autre.
+        let hoverLeaveTimer = null;
+        const hoverZone = elBack.querySelector('.marker-hover-zone');
+        const labelEl = elFront.querySelector('.marker-label');
+        const imgEl = elFront.querySelector('.marker-image');
+        const onHoverEnter = () => {
+            if (!hoverReveal) return;
+            clearTimeout(hoverLeaveTimer);
+            const wasHidden = imgEl.classList.contains('hidden');
+            imgEl.classList.add('hover-peek');
+            // Le logo était masqué : on lui fait de la place, le texte recule temporairement
+            if (wasHidden) labelEl.style.bottom = (markerObj.size || DEFAULT_LOGO_SIZE) + 6 + 'px';
+        };
+        const onHoverLeave = () => {
+            clearTimeout(hoverLeaveTimer);
+            hoverLeaveTimer = setTimeout(() => {
+                imgEl.classList.remove('hover-peek');
+                refreshMarkerVisibility(markerObj); // remet le texte à sa vraie position de repos
+            }, 180);
+        };
+        hoverZone.addEventListener('mouseenter', onHoverEnter);
+        hoverZone.addEventListener('mouseleave', onHoverLeave);
+        labelEl.addEventListener('mouseenter', onHoverEnter);
+        labelEl.addEventListener('mouseleave', onHoverLeave);
+
+        markers.push(markerObj);
+        refreshMarkerVisibility(markerObj);
         updateMarkerUI();
     }
 
@@ -1056,6 +1110,7 @@
         const imgEl = markers[index].markerFront.getElement().querySelector('.marker-image');
         imgEl.style.width = size + 'px';
         imgEl.style.height = size + 'px';
+        refreshMarkerVisibility(markers[index]); // le texte peut devoir reculer/avancer avec la nouvelle taille
         // Mise à jour de l'étiquette de valeur sans re-render complet
         const row = document.querySelectorAll('#markers-list .list-item')[index];
         if (row) { const v = row.querySelector('.size-val'); if (v) v.innerText = size + 'px'; }
@@ -1360,11 +1415,15 @@
             document.getElementById('color-land').value = data.colors.land;
             document.getElementById('color-water').value = data.colors.water;
             document.getElementById('color-road').value = data.colors.road || '#ffffff';
-            // Affiche exactement ce qui a été sauvé, et retrouve la "référence Jour" pour que le
-            // prochain toggle Jour/Nuit reste cohérent (dé-inverse si le fichier a été sauvé en thème Nuit).
-            const wasDark = document.body.classList.contains('theme-dark');
-            landLight = wasDark ? invertHex(data.colors.land) : data.colors.land;
-            roadLight = wasDark ? invertHex(data.colors.road || '#ffffff') : (data.colors.road || '#ffffff');
+            // Sert de référence "Jour" pour les prochains toggles Jour/Nuit. Si on est actuellement en
+            // thème Nuit, on réapplique en plus l'assombrissement cohérent par-dessus les valeurs
+            // chargées (au lieu de garder telles quelles d'éventuelles anciennes couleurs sombres).
+            landLight = data.colors.land;
+            roadLight = data.colors.road || '#ffffff';
+            if (document.body.classList.contains('theme-dark')) {
+                document.getElementById('color-land').value = darkenForNight(landLight, NIGHT_LAND_L);
+                document.getElementById('color-road').value = darkenForNight(roadLight, NIGHT_ROAD_L);
+            }
             waterCustomized = true;
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
