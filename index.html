@@ -149,6 +149,12 @@
         }
         h3::before { content: "// "; opacity: .6; }
 
+        h3.h3-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+        h3.h3-toggle .h3-chevron { transition: transform .2s ease; font-size: 10px; }
+        h3.h3-toggle.collapsed .h3-chevron { transform: rotate(-90deg); }
+        .collapsible-body { overflow: hidden; }
+        .collapsible-body.collapsed { display: none; }
+
         .control-group { margin-bottom: 14px; }
 
         /* --- CHAMPS --- */
@@ -203,14 +209,14 @@
            ============================================================ */
         .marker-back-container { width: 0; height: 0; overflow: visible; position: relative; z-index: 1 !important; }
         .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; }
-        /* Zone de survol élargie (invisible) autour du point, pour ne pas avoir à viser 12px pile */
-        .marker-hover-zone { width: 44px; height: 44px; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 11; cursor: pointer; }
+        /* Zone de survol élargie (invisible) autour du point, pour ne pas avoir à viser le pixel pile */
+        .marker-hover-zone { width: 64px; height: 64px; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 11; cursor: pointer; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
-        .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; }
-        .marker-content-wrapper { will-change: transform; transition: transform 0.1s linear; display: flex; flex-direction: column; align-items: center; }
+        .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+        .marker-content-wrapper { will-change: transform; transition: transform 0.1s linear; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 
-        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; }
+        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: relative; z-index: 20; pointer-events: auto; }
         .marker-image:hover { transform: scale(1.15); z-index: 9999 !important; }
 
         .marker-label { margin-top: 5px; font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: relative; z-index: 30; pointer-events: none; transition: opacity 0.3s; font-family: var(--font-main); }
@@ -461,6 +467,7 @@
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="landCustomized=true; updateColors()"></div>
             <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="waterCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="roadCustomized=true; updateColors()"></div>
         </div>
 
         <input type="text" id="country-iso" placeholder="Frontières (ex: FR, CN, US)" value="CN">
@@ -493,11 +500,13 @@
     </div>
 
     <div class="control-group">
-        <h3>Groupes</h3>
-        <div class="btn-grid" style="margin-bottom:10px;">
-            <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
+        <h3 class="h3-toggle" id="groups-h3" onclick="toggleGroupsCollapse()">Groupes <span class="h3-chevron">&#9660;</span></h3>
+        <div id="groups-body" class="collapsible-body">
+            <div class="btn-grid" style="margin-bottom:10px;">
+                <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
+            </div>
+            <div id="groups-list"></div>
         </div>
-        <div id="groups-list"></div>
     </div>
 
     <div class="control-group">
@@ -670,8 +679,10 @@
     // Jour/Nuit (sinon le mode Plan restait gris clair même en thème Nuit).
     let landCustomized = false;
     let waterCustomized = false;
+    let roadCustomized = false;
     const LAND_BY_THEME = { light: '#e0e0e0', dark: '#141414' };
     const WATER_BY_THEME = { light: '#a0cfdf', dark: '#06222c' };
+    const ROAD_BY_THEME = { light: '#ffffff', dark: '#4a4a4a' };
 
     function toggleTheme() {
         const dark = document.body.classList.toggle('theme-dark');
@@ -680,6 +691,7 @@
         try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
         if (!landCustomized) document.getElementById('color-land').value = dark ? LAND_BY_THEME.dark : LAND_BY_THEME.light;
         if (!waterCustomized) document.getElementById('color-water').value = dark ? WATER_BY_THEME.dark : WATER_BY_THEME.light;
+        if (!roadCustomized) document.getElementById('color-road').value = dark ? ROAD_BY_THEME.dark : ROAD_BY_THEME.light;
         updateColors();
     }
     (function initTheme() {
@@ -720,6 +732,18 @@
         let saved = 'on';
         try { saved = localStorage.getItem('cm-grid') || 'on'; } catch(e) {}
         if (saved === 'off') document.body.classList.add('no-grid');
+    })();
+
+    // --- SECTION GROUPES REPLIABLE (pour ne pas allonger le panneau quand il y en a beaucoup) ---
+    function toggleGroupsCollapse() {
+        const collapsed = document.getElementById('groups-body').classList.toggle('collapsed');
+        document.getElementById('groups-h3').classList.toggle('collapsed', collapsed);
+        try { localStorage.setItem('cm-groups-collapsed', collapsed ? '1' : '0'); } catch(e) {}
+    }
+    (function initGroupsCollapse() {
+        let saved = '0';
+        try { saved = localStorage.getItem('cm-groups-collapsed') || '0'; } catch(e) {}
+        if (saved === '1') toggleGroupsCollapse();
     })();
 
     // --- NAVIGATION ---
@@ -1150,6 +1174,7 @@
         if (currentStyle !== 'plan') return;
         const land = document.getElementById('color-land').value;
         const water = document.getElementById('color-water').value;
+        const road = document.getElementById('color-road').value;
         // Le style light-v10 nomme son calque de fond "land" (pas "background"), et le sol visible
         // est en réalité recouvert par plusieurs calques (landcover, landuse, parcs...) qu'il faut
         // teinter aussi, sinon seule la couleur des interstices changeait.
@@ -1160,6 +1185,13 @@
         });
         ['water-shadow', 'water'].forEach(id => {
             if (map.getLayer(id)) map.setPaintProperty(id, 'fill-color', water);
+        });
+        // Les routes sont blanches par défaut dans light-v10 : illisibles selon la couleur du sol.
+        // On recolore toutes les sous-couches routières (tunnels/ponts/bordures inclus).
+        map.getStyle().layers.forEach(l => {
+            if (l.type === 'line' && l['source-layer'] === 'road' && map.getLayer(l.id)) {
+                map.setPaintProperty(l.id, 'line-color', road);
+            }
         });
     }
     function saveProject() {
@@ -1173,7 +1205,11 @@
                 dashed: borderDashed,
                 dashSize: borderDashSize
             },
-            colors: { land: document.getElementById('color-land').value, water: document.getElementById('color-water').value },
+            colors: {
+                land: document.getElementById('color-land').value,
+                water: document.getElementById('color-water').value,
+                road: document.getElementById('color-road').value
+            },
             keyframes: keyframes,
             groups: groups.map(g => ({ name: g.name, color: g.color, visible: g.visible })),
             markersData: markers.map(m => ({
@@ -1212,9 +1248,11 @@
             toggleBorderDash(data.borders.dashed || false);
             document.getElementById('color-land').value = data.colors.land;
             document.getElementById('color-water').value = data.colors.water;
-            // Le fichier contient des couleurs Sol/Eau explicites : ne plus les écraser au toggle Jour/Nuit
+            document.getElementById('color-road').value = data.colors.road || '#ffffff';
+            // Le fichier contient des couleurs Sol/Eau/Routes explicites : ne plus les écraser au toggle Jour/Nuit
             landCustomized = true;
             waterCustomized = true;
+            roadCustomized = true;
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
@@ -1394,10 +1432,9 @@
     }
 
     // --- Géométrie ---
+    // Les flèches partent/arrivent au point exact (le repère géographique), pas vers le logo
     function anchorScreen(m) {
-        const p = map.project(m.lngLat);
-        const lift = (m.size || DEFAULT_LOGO_SIZE) * 0.55;
-        return { x: p.x, y: p.y - lift };
+        return map.project(m.lngLat);
     }
 
     function arrowPairs(a) {
