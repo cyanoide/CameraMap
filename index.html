@@ -202,7 +202,9 @@
            MARQUEURS (sur la carte)
            ============================================================ */
         .marker-back-container { width: 0; height: 0; overflow: visible; position: relative; z-index: 1 !important; }
-        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; cursor: pointer; }
+        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; }
+        /* Zone de survol élargie (invisible) autour du point, pour ne pas avoir à viser 12px pile */
+        .marker-hover-zone { width: 44px; height: 44px; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 11; cursor: pointer; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
         .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; display: flex; flex-direction: column; align-items: center; }
@@ -309,8 +311,8 @@
             text-transform: uppercase; color: var(--accent);
         }
         .arrow-fiche .af-head .af-title { flex: 1; }
-        .arrow-fiche .af-cols { display: flex; gap: 6px; }
-        .arrow-fiche .af-col { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+        .arrow-fiche .af-cols { display: flex; flex-direction: column; gap: 8px; }
+        .arrow-fiche .af-col { display: flex; flex-direction: column; gap: 3px; }
         .arrow-fiche label.af-lbl {
             font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px;
             text-transform: uppercase; color: var(--muted);
@@ -369,6 +371,7 @@
         #theme-toggle { top: 62px; right: 24px; }
         #scanlines-toggle { top: 104px; right: 24px; }
         #hover-toggle { top: 146px; right: 24px; }
+        #grid-toggle { top: 188px; right: 24px; }
         .hud-btn .track {
             width: 34px; height: 16px; border: 1px solid var(--accent); border-radius: 2px;
             position: relative; opacity: .8; flex: none;
@@ -381,6 +384,9 @@
         #scanlines-toggle .thumb { left: 18px; }
         body.no-scanlines #scanlines-toggle .thumb { left: 1px; }
         body.hover-reveal #hover-toggle .thumb { left: 18px; }
+        #grid-toggle .thumb { left: 18px; }
+        body.no-grid #grid-toggle .thumb { left: 1px; }
+        body.no-grid #bg-grid { display: none; }
 
         .footer-hud {
             margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border);
@@ -418,6 +424,10 @@
     <span class="track"><span class="thumb"></span></span>
     <span>Survol</span>
 </button>
+<button id="grid-toggle" class="hud-btn" onclick="toggleGrid()">
+    <span class="track"><span class="thumb"></span></span>
+    <span>Grille</span>
+</button>
 
 <div id="ui-panel">
     <div class="panel-header">
@@ -449,8 +459,8 @@
             <button id="btn-plan" onclick="switchStyle('plan')">&#128208; Plan 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
-            <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="updateColors()"></div>
-            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="updateColors()"></div>
+            <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="landCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="waterCustomized=true; updateColors()"></div>
         </div>
 
         <input type="text" id="country-iso" placeholder="Frontières (ex: FR, CN, US)" value="CN">
@@ -463,9 +473,17 @@
             <span>Opacité</span>
             <input type="range" id="border-opacity" min="0.1" max="1" step="0.1" value="1" oninput="updateBorderOpacity(this.value)">
         </div>
+        <div class="color-row">
+            <span>Épaisseur</span>
+            <input type="range" id="border-width" min="1" max="14" step="0.5" value="4" oninput="updateBorderWidth(this.value)">
+        </div>
         <div class="btn-grid" style="margin-top:5px;">
             <button id="btn-border-solid" class="active" onclick="toggleBorderDash(false)">Trait Plein</button>
             <button id="btn-border-dashed" onclick="toggleBorderDash(true)">Pointillés</button>
+        </div>
+        <div class="color-row" style="margin-top:5px;">
+            <span>Taille pointillés</span>
+            <input type="range" id="border-dash-size" min="1" max="24" step="1" value="4" oninput="updateBorderDashSize(this.value)">
         </div>
 
         <div class="btn-grid" style="margin-top:10px;">
@@ -530,6 +548,8 @@
     let pendingImage = null;
     let physicsInterval = null;
     let borderDashed = false;
+    let borderWidth = 4;
+    let borderDashSize = 4;
 
     const DEFAULT_LOGO_SIZE = 80; // px
     const ARROW_DRAW_MS = 950;    // durée du tracé progressif d'une flèche
@@ -646,11 +666,21 @@
     }
 
     // --- THEME ---
+    // Tant que l'utilisateur n'a pas choisi sa propre couleur Sol/Eau, elles suivent le thème
+    // Jour/Nuit (sinon le mode Plan restait gris clair même en thème Nuit).
+    let landCustomized = false;
+    let waterCustomized = false;
+    const LAND_BY_THEME = { light: '#e0e0e0', dark: '#141414' };
+    const WATER_BY_THEME = { light: '#a0cfdf', dark: '#06222c' };
+
     function toggleTheme() {
         const dark = document.body.classList.toggle('theme-dark');
         document.body.classList.toggle('theme-light', !dark);
         document.getElementById('theme-label').innerText = dark ? 'Nuit' : 'Jour';
         try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
+        if (!landCustomized) document.getElementById('color-land').value = dark ? LAND_BY_THEME.dark : LAND_BY_THEME.light;
+        if (!waterCustomized) document.getElementById('color-water').value = dark ? WATER_BY_THEME.dark : WATER_BY_THEME.light;
+        updateColors();
     }
     (function initTheme() {
         let saved = 'light';
@@ -679,6 +709,17 @@
         let saved = 'off';
         try { saved = localStorage.getItem('cm-hover') || 'off'; } catch(e) {}
         if (saved === 'on') toggleHoverReveal();
+    })();
+
+    // --- QUADRILLAGE DE FOND ---
+    function toggleGrid() {
+        const off = document.body.classList.toggle('no-grid');
+        try { localStorage.setItem('cm-grid', off ? 'off' : 'on'); } catch(e) {}
+    }
+    (function initGrid() {
+        let saved = 'on';
+        try { saved = localStorage.getItem('cm-grid') || 'on'; } catch(e) {}
+        if (saved === 'off') document.body.classList.add('no-grid');
     })();
 
     // --- NAVIGATION ---
@@ -784,7 +825,7 @@
 
         const elBack = document.createElement('div');
         elBack.className = 'marker-back-container';
-        elBack.innerHTML = `<div class="marker-dot" style="background:${dotColor}; box-shadow:0 0 8px ${dotColor};"></div><div class="marker-line"></div>`;
+        elBack.innerHTML = `<div class="marker-dot" style="background:${dotColor}; box-shadow:0 0 8px ${dotColor};"></div><div class="marker-hover-zone"></div><div class="marker-line"></div>`;
         const markerBack = new mapboxgl.Marker({ element: elBack, anchor: 'center' }).setLngLat(lngLat).addTo(map);
 
         const elFront = document.createElement('div');
@@ -797,13 +838,14 @@
         `;
         const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 
-        // Survol du point : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif)
-        const dotEl = elBack.querySelector('.marker-dot');
-        dotEl.addEventListener('mouseenter', () => {
+        // Survol du point (zone élargie, pas juste le pixel du point) : aperçu temporaire du logo
+        // s'il est masqué (uniquement si le toggle SURVOL est actif)
+        const hoverZone = elBack.querySelector('.marker-hover-zone');
+        hoverZone.addEventListener('mouseenter', () => {
             if (!hoverReveal) return;
             elFront.querySelector('.marker-image').classList.add('hover-peek');
         });
-        dotEl.addEventListener('mouseleave', () => {
+        hoverZone.addEventListener('mouseleave', () => {
             elFront.querySelector('.marker-image').classList.remove('hover-peek');
         });
 
@@ -964,6 +1006,13 @@
     }
 
     // --- FRONTIÈRES ---
+    // Retire complètement le calque ET la source (sinon Mapbox refuse de recréer une source
+    // du même nom au prochain drawBorders() -> c'est ce qui empêchait de "remettre" le surlignage)
+    function removeBordersLayer() {
+        if (map.getLayer('custom-borders')) map.removeLayer('custom-borders');
+        if (map.getSource('custom-borders')) map.removeSource('custom-borders');
+    }
+
     function drawBorders(force = true) {
         const input = document.getElementById('country-iso').value;
         const color = document.getElementById('border-color').value;
@@ -971,10 +1020,10 @@
 
         if (!input && !force) return;
         const codes = input.split(',').map(c => c.trim().toUpperCase());
-        if (map.getLayer('custom-borders')) map.removeLayer('custom-borders');
+        removeBordersLayer();
         if (!map.isStyleLoaded()) return;
 
-        const dashArray = borderDashed ? [4, 4] : [1, 0];
+        const dashArray = borderDashed ? [borderDashSize, borderDashSize] : [1, 0];
 
         map.addLayer({
             'id': 'custom-borders', 'type': 'line',
@@ -983,7 +1032,7 @@
             'layout': { 'line-join': 'round', 'line-cap': 'round' },
             'paint': {
                 'line-color': color,
-                'line-width': 4,
+                'line-width': borderWidth,
                 'line-blur': 1,
                 'line-opacity': parseFloat(opacity),
                 'line-dasharray': dashArray
@@ -1000,16 +1049,28 @@
         if (map.getLayer('custom-borders')) map.setPaintProperty('custom-borders', 'line-opacity', parseFloat(val));
     }
 
+    function updateBorderWidth(val) {
+        borderWidth = parseFloat(val);
+        if (map.getLayer('custom-borders')) map.setPaintProperty('custom-borders', 'line-width', borderWidth);
+    }
+
+    function updateBorderDashSize(val) {
+        borderDashSize = parseFloat(val);
+        if (borderDashed && map.getLayer('custom-borders')) {
+            map.setPaintProperty('custom-borders', 'line-dasharray', [borderDashSize, borderDashSize]);
+        }
+    }
+
     function toggleBorderDash(isDashed) {
         borderDashed = isDashed;
         document.getElementById('btn-border-solid').className = isDashed ? '' : 'active';
         document.getElementById('btn-border-dashed').className = isDashed ? 'active' : '';
         if (map.getLayer('custom-borders')) {
-             map.setPaintProperty('custom-borders', 'line-dasharray', isDashed ? [4, 4] : [1, 0]);
+             map.setPaintProperty('custom-borders', 'line-dasharray', isDashed ? [borderDashSize, borderDashSize] : [1, 0]);
         }
     }
 
-    function clearBorders() { if (map.getLayer('custom-borders')) map.removeLayer('custom-borders'); }
+    function clearBorders() { removeBordersLayer(); }
 
     // --- KEYFRAMES ---
     function addKeyframe() {
@@ -1089,8 +1150,17 @@
         if (currentStyle !== 'plan') return;
         const land = document.getElementById('color-land').value;
         const water = document.getElementById('color-water').value;
-        if(map.getLayer('background')) map.setPaintProperty('background', 'background-color', land);
-        if(map.getLayer('water')) map.setPaintProperty('water', 'fill-color', water);
+        // Le style light-v10 nomme son calque de fond "land" (pas "background"), et le sol visible
+        // est en réalité recouvert par plusieurs calques (landcover, landuse, parcs...) qu'il faut
+        // teinter aussi, sinon seule la couleur des interstices changeait.
+        ['land', 'landcover', 'landuse', 'national-park', 'land-structure-polygon'].forEach(id => {
+            if (!map.getLayer(id)) return;
+            const prop = id === 'land' ? 'background-color' : 'fill-color';
+            map.setPaintProperty(id, prop, land);
+        });
+        ['water-shadow', 'water'].forEach(id => {
+            if (map.getLayer(id)) map.setPaintProperty(id, 'fill-color', water);
+        });
     }
     function saveProject() {
         const data = {
@@ -1099,7 +1169,9 @@
                 codes: document.getElementById('country-iso').value,
                 color: document.getElementById('border-color').value,
                 opacity: document.getElementById('border-opacity').value,
-                dashed: borderDashed
+                width: borderWidth,
+                dashed: borderDashed,
+                dashSize: borderDashSize
             },
             colors: { land: document.getElementById('color-land').value, water: document.getElementById('color-water').value },
             keyframes: keyframes,
@@ -1133,9 +1205,16 @@
             document.getElementById('country-iso').value = data.borders.codes;
             document.getElementById('border-color').value = data.borders.color || '#ff0000';
             document.getElementById('border-opacity').value = data.borders.opacity || '1';
+            borderWidth = data.borders.width || 4;
+            document.getElementById('border-width').value = borderWidth;
+            borderDashSize = data.borders.dashSize || 4;
+            document.getElementById('border-dash-size').value = borderDashSize;
             toggleBorderDash(data.borders.dashed || false);
             document.getElementById('color-land').value = data.colors.land;
             document.getElementById('color-water').value = data.colors.water;
+            // Le fichier contient des couleurs Sol/Eau explicites : ne plus les écraser au toggle Jour/Nuit
+            landCustomized = true;
+            waterCustomized = true;
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
