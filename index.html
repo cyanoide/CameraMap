@@ -479,7 +479,7 @@
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="onLightColorInput('land',this.value); updateColors()"></div>
-            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#a0cfdf" oninput="waterCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#81c8df" oninput="waterCustomized=true; updateColors()"></div>
             <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="onLightColorInput('road',this.value); updateColors()"></div>
         </div>
 
@@ -532,6 +532,11 @@
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères">&#128444; Tout</button>
                 <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères">&#128205; Tout</button>
+            </div>
+            <div class="color-row" style="margin-bottom:10px;">
+                <span>Proximité logo</span>
+                <input type="range" id="logo-proximity" min="0" max="0.6" step="0.02" value="0.22"
+                       oninput="updateLogoProximity(this.value)" title="Rapproche le logo du point (il le chevauche davantage)">
             </div>
             <input type="file" id="logo-upload" accept="image/*" style="display:none;">
             <div id="markers-list" style="margin-top:10px;"></div>
@@ -586,6 +591,9 @@
 
     const DEFAULT_LOGO_SIZE = 80; // px
     const ARROW_DRAW_MS = 950;    // durée du tracé progressif d'une flèche
+    // Proximité globale logo/point : fraction de la hauteur du logo qui chevauche le point
+    // (0 = le bas du logo touche pile le point, comme avant ; plus haut = le logo "descend" sur le point)
+    let logoProximity = 0.22;
 
     let _idSeq = 0;
     function nextId() { return 'id_' + Date.now().toString(36) + '_' + (_idSeq++).toString(36); }
@@ -608,9 +616,13 @@
 
         // Le logo est prioritaire pour être au plus près du point ; s'il n'est pas affiché,
         // le texte prend sa place (transition CSS fluide sur `bottom`, cf. .marker-label / .marker-image).
+        // `logoProximity` fait "descendre" le logo pour qu'il chevauche davantage le point (un grand
+        // logo qui touche juste le point du bout de son bord semble quand même loin, vu sa taille) ;
+        // le texte, lui, reste calé juste au-dessus du logo (même écart de 6px, quelle que soit la valeur).
         const size = m.size || DEFAULT_LOGO_SIZE;
-        imgEl.style.bottom = '0px';
-        txtEl.style.bottom = logoShown ? (size + 6) + 'px' : '0px';
+        const imgBottom = -size * logoProximity;
+        imgEl.style.bottom = imgBottom + 'px';
+        txtEl.style.bottom = logoShown ? (imgBottom + size + 6) + 'px' : '0px';
 
         // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
         const backEl = m.markerBack.getElement();
@@ -723,7 +735,7 @@
     let landLight = '#e0e0e0';
     let roadLight = '#ffffff';
     let waterCustomized = false;
-    const WATER_BY_THEME = { light: '#a0cfdf', dark: '#06222c' };
+    const WATER_BY_THEME = { light: '#81c8df', dark: '#377a90' };
     const NIGHT_LAND_L = 0.10;  // luminosité cible du sol en thème Nuit
     const NIGHT_ROAD_L = 0.32;  // ... et des routes, volontairement plus claire que le sol
 
@@ -897,6 +909,35 @@
                 }
             }
 
+            // Répulsion légère (best effort) vis-à-vis des flèches proches, pour limiter le
+            // chevauchement logo/ligne quand plusieurs flèches convergent sur un point voisin.
+            if (arrows.length) {
+                const AVOID_DIST = 50;
+                markers.forEach(m => {
+                    if (!isMarkerActive(m)) return;
+                    arrows.forEach(a => {
+                        if (!a.drawn) return;
+                        arrowPairs(a).forEach(([fm, tm]) => {
+                            if (fm === m || tm === m) return; // pas de répulsion vis-à-vis de sa propre flèche
+                            const s = anchorScreen(fm), e = anchorScreen(tm);
+                            const px = m.x + m.forceX, py = m.y + m.forceY;
+                            const dx = e.x - s.x, dy = e.y - s.y;
+                            const lenSq = dx * dx + dy * dy || 1;
+                            let t = ((px - s.x) * dx + (py - s.y) * dy) / lenSq;
+                            t = Math.max(0.08, Math.min(0.92, t)); // épargne les abords immédiats des points
+                            const cx = s.x + t * dx, cy = s.y + t * dy;
+                            const ddx = px - cx, ddy = py - cy;
+                            const dist = Math.hypot(ddx, ddy);
+                            if (dist < AVOID_DIST && dist > 0.5) {
+                                const push = (AVOID_DIST - dist) * 0.06;
+                                m.forceX += (ddx / dist) * push;
+                                m.forceY += (ddy / dist) * push;
+                            }
+                        });
+                    });
+                });
+            }
+
             markers.forEach(m => {
                 const contentWrapper = m.markerFront.getElement().querySelector('.marker-content-wrapper');
                 if (contentWrapper) contentWrapper.style.transform = `translate(${m.forceX}px, ${m.forceY}px)`;
@@ -983,7 +1024,10 @@
             const wasHidden = imgEl.classList.contains('hidden');
             imgEl.classList.add('hover-peek');
             // Le logo était masqué : on lui fait de la place, le texte recule temporairement
-            if (wasHidden) labelEl.style.bottom = (markerObj.size || DEFAULT_LOGO_SIZE) + 6 + 'px';
+            if (wasHidden) {
+                const size = markerObj.size || DEFAULT_LOGO_SIZE;
+                labelEl.style.bottom = (-size * logoProximity + size + 6) + 'px';
+            }
         };
         const onHoverLeave = () => {
             clearTimeout(hoverLeaveTimer);
@@ -1168,6 +1212,20 @@
         markers.forEach(m => { m.pointVisible = !anyOn; refreshMarkerVisibility(m); });
         updateMarkerUI();
     }
+    function updateLogoProximity(val) {
+        logoProximity = parseFloat(val);
+        markers.forEach(m => refreshMarkerVisibility(m));
+        try { localStorage.setItem('cm-logo-proximity', String(logoProximity)); } catch(e) {}
+    }
+    (function initLogoProximity() {
+        let saved = null;
+        try { saved = localStorage.getItem('cm-logo-proximity'); } catch(e) {}
+        if (saved != null) {
+            logoProximity = parseFloat(saved);
+            const slider = document.getElementById('logo-proximity');
+            if (slider) slider.value = logoProximity;
+        }
+    })();
     function toggleGroupLogos(groupId) {
         const members = markers.filter(m => m.groupId === groupId);
         const anyOn = members.some(m => m.logoVisible);
@@ -1391,7 +1449,7 @@
                 from: a.from.map(id => markerIndexById(id)).filter(i => i >= 0),
                 to:   a.to.map(id => markerIndexById(id)).filter(i => i >= 0),
                 curved: a.curved, color: a.color, opacity: a.opacity, width: a.width,
-                echo: a.echo, mover: a.mover, moverSpeed: a.moverSpeed, keyframe: a.keyframe
+                echo: a.echo, mover: a.mover, moverSpeed: a.moverSpeed, shorten: a.shorten, keyframe: a.keyframe
             }))
         };
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
@@ -1463,6 +1521,7 @@
                 echo: !!a.echo,
                 mover: !!a.mover,
                 moverSpeed: a.moverSpeed || 1,
+                shorten: a.shorten || 0,
                 keyframe: (a.keyframe != null) ? a.keyframe : null,
                 drawn: true
             }));
@@ -1495,7 +1554,7 @@
         arrows.push({
             id: nextId(), from: [], to: [],
             curved: false, color: currentAccent(), opacity: 0.9, width: 3,
-            echo: false, mover: false, moverSpeed: 1, keyframe: null, drawn: true
+            echo: false, mover: false, moverSpeed: 1, shorten: 0, keyframe: null, drawn: true
         });
         updateArrowUI();
         renderArrows();
@@ -1586,6 +1645,10 @@
                     <input type="range" min="0.2" max="4" step="0.1" value="${a.moverSpeed || 1}" oninput="setArrowField('${a.id}','moverSpeed',parseFloat(this.value))">
                 </div>
                 <div class="af-row">
+                    <span>Raccourcir</span>
+                    <input type="range" min="0" max="0.4" step="0.02" value="${a.shorten || 0}" oninput="setArrowField('${a.id}','shorten',parseFloat(this.value))" title="Écarte les deux bouts de la flèche des centres des points">
+                </div>
+                <div class="af-row">
                     <span>&Eacute;paiss.</span>
                     <input type="range" min="1" max="10" step="0.5" value="${a.width}" oninput="setArrowField('${a.id}','width',parseFloat(this.value))">
                     <span>Opac.</span>
@@ -1665,9 +1728,19 @@
                 const pair = pairs[idx];
                 if (!pair) { seg.style.display = 'none'; return; }
                 seg.style.display = '';
-                const s = anchorScreen(pair[0]);
-                const e = anchorScreen(pair[1]);
+                let s = anchorScreen(pair[0]);
+                let e = anchorScreen(pair[1]);
                 const [e1, e2, e3, main, head, mover] = seg.children;
+
+                // Raccourcit symétriquement les deux bouts (loin des centres des points) selon le
+                // curseur "Raccourcir" — utile pour désencombrer un point où plusieurs flèches convergent
+                const shortenFrac = Math.min(0.45, Math.max(0, a.shorten || 0));
+                if (shortenFrac > 0) {
+                    const ang0 = Math.atan2(e.y - s.y, e.x - s.x);
+                    const pull = Math.hypot(e.x - s.x, e.y - s.y) * shortenFrac;
+                    s = { x: s.x + pull * Math.cos(ang0), y: s.y + pull * Math.sin(ang0) };
+                    e = { x: e.x - pull * Math.cos(ang0), y: e.y - pull * Math.sin(ang0) };
+                }
 
                 // Géométrie complète, jusqu'au point B exact
                 let cx, cy;
