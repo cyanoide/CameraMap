@@ -151,10 +151,26 @@
         /* justify-content:space-between casserait la mise en page à cause du ::before ("// ") qui
            compte comme un item flex à part entière ; on pousse juste le chevron via margin-left:auto */
         h3.h3-toggle { display: flex; align-items: center; cursor: pointer; user-select: none; }
-        h3.h3-toggle .h3-chevron { margin-left: auto; padding-left: 8px; transition: transform .2s ease; font-size: 10px; }
+        /* Timing "mécanique" (pas de rebond organique) façon HUD/terminal plutôt qu'une easing molle */
+        h3.h3-toggle .h3-chevron { margin-left: auto; padding-left: 8px; transition: transform .3s cubic-bezier(.2,.9,.25,1); font-size: 10px; color: var(--accent); }
         h3.h3-toggle.collapsed .h3-chevron { transform: rotate(-90deg); }
-        .collapsible-body { overflow: hidden; }
-        .collapsible-body.collapsed { display: none; }
+
+        /* Flash d'accent bref sur la bordure au moment du clic (déclenché en JS, cf. pulseHeader()) */
+        @keyframes hudPulse {
+            0%   { border-bottom-color: var(--accent); box-shadow: 0 1px 10px var(--accent-glow); }
+            100% { border-bottom-color: var(--border); box-shadow: none; }
+        }
+        h3.h3-toggle.pulse { animation: hudPulse .45s ease-out; }
+
+        /* Repli/dépli fluide : la ligne de grille anime vers 0fr (contrairement à max-height, ça colle
+           exactement à la hauteur réelle du contenu, quelle que soit sa taille) ; .cb-inner absorbe le
+           overflow pendant la transition. */
+        .collapsible-body {
+            display: grid; grid-template-rows: 1fr; opacity: 1;
+            transition: grid-template-rows .38s cubic-bezier(.2,.9,.25,1), opacity .28s ease;
+        }
+        .collapsible-body.collapsed { grid-template-rows: 0fr; opacity: 0; }
+        .collapsible-body > .cb-inner { overflow: hidden; min-height: 0; }
 
         .control-group { margin-bottom: 14px; }
 
@@ -289,9 +305,17 @@
         }
         .group-divider:first-child { margin-top: 0; }
         .group-divider:hover { background: var(--item-hover); color: var(--text); }
-        .group-divider .gd-chevron { margin-left: auto; font-size: 8px; transition: transform .2s ease; }
+        .group-divider .gd-chevron { margin-left: auto; font-size: 8px; transition: transform .3s cubic-bezier(.2,.9,.25,1); }
         .group-divider.collapsed .gd-chevron { transform: rotate(-90deg); }
-        .group-section-body.collapsed { display: none; }
+        @keyframes hudPulseSm { 0% { background: var(--item-selected); } 100% { background: transparent; } }
+        .group-divider.pulse { animation: hudPulseSm .4s ease-out; }
+
+        .group-section-body {
+            display: grid; grid-template-rows: 1fr; opacity: 1;
+            transition: grid-template-rows .32s cubic-bezier(.2,.9,.25,1), opacity .26s ease;
+        }
+        .group-section-body.collapsed { grid-template-rows: 0fr; opacity: 0; }
+        .group-section-body > .gsb-inner { overflow: hidden; min-height: 0; }
 
         /* ============================================================
            FLÈCHES (overlay SVG au-dessus de la carte)
@@ -462,24 +486,24 @@
 
     <div class="control-group">
         <h3 class="h3-toggle" id="nav-h3" onclick="toggleSection('nav')">Navigation <span class="h3-chevron">&#9660;</span></h3>
-        <div id="nav-body" class="collapsible-body">
+        <div id="nav-body" class="collapsible-body"><div class="cb-inner">
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="Ville, Lieu, Adresse...">
                 <button onclick="searchLocation()">Go</button>
             </div>
-        </div>
+        </div></div>
     </div>
 
     <div class="control-group">
         <h3 class="h3-toggle" id="style-h3" onclick="toggleSection('style')">Style et Fronti&egrave;res <span class="h3-chevron">&#9660;</span></h3>
-        <div id="style-body" class="collapsible-body">
+        <div id="style-body" class="collapsible-body"><div class="cb-inner">
         <div class="btn-grid" style="margin-bottom:8px;">
             <button id="btn-sat" onclick="switchStyle('satellite')" class="primary">&#127757; Satellite</button>
             <button id="btn-plan" onclick="switchStyle('plan')">&#128208; Plan 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="onLightColorInput('land',this.value); updateColors()"></div>
-            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#81c8df" oninput="waterCustomized=true; updateColors()"></div>
+            <div class="color-row"><span>Eau</span> <input type="color" id="color-water" value="#81c8df" oninput="onWaterColorInput(this.value); updateColors()"></div>
             <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="onLightColorInput('road',this.value); updateColors()"></div>
         </div>
 
@@ -510,22 +534,22 @@
             <button class="primary" onclick="drawBorders()">Surligner</button>
             <button onclick="clearBorders()">Effacer</button>
         </div>
-        </div>
+        </div></div>
     </div>
 
     <div class="control-group">
         <h3 class="h3-toggle" id="groups-h3" onclick="toggleSection('groups')">Groupes <span class="h3-chevron">&#9660;</span></h3>
-        <div id="groups-body" class="collapsible-body">
+        <div id="groups-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
             </div>
             <div id="groups-list"></div>
-        </div>
+        </div></div>
     </div>
 
     <div class="control-group">
         <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Logos et Textes <span class="h3-chevron">&#9660;</span></h3>
-        <div id="logos-body" class="collapsible-body">
+        <div id="logos-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:6px;">
                 <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
             </div>
@@ -540,22 +564,22 @@
             </div>
             <input type="file" id="logo-upload" accept="image/*" style="display:none;">
             <div id="markers-list" style="margin-top:10px;"></div>
-        </div>
+        </div></div>
     </div>
 
     <div class="control-group">
         <h3 class="h3-toggle" id="arrows-h3" onclick="toggleSection('arrows')">Flèches <span class="h3-chevron">&#9660;</span></h3>
-        <div id="arrows-body" class="collapsible-body">
+        <div id="arrows-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
             </div>
             <div id="arrows-list"></div>
-        </div>
+        </div></div>
     </div>
 
     <div class="control-group">
         <h3 class="h3-toggle" id="video-h3" onclick="toggleSection('video')">Vidéo <span class="h3-chevron">&#9660;</span></h3>
-        <div id="video-body" class="collapsible-body">
+        <div id="video-body" class="collapsible-body"><div class="cb-inner">
             <button class="primary" onclick="addKeyframe()">+ Ajouter Keyframe</button>
             <div id="keyframes-list" style="margin-top:5px;"></div>
             <div style="margin-top:15px; background:var(--bg-field); padding:10px; border:1px solid var(--border); border-radius:2px;">
@@ -563,7 +587,7 @@
                 <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" style="width:100%;">
                 <button class="record" onclick="playScene()" style="margin-top:8px;">&#9654; Action</button>
             </div>
-        </div>
+        </div></div>
     </div>
 
     <div class="footer-hud">
@@ -617,12 +641,15 @@
         // Le logo est prioritaire pour être au plus près du point ; s'il n'est pas affiché,
         // le texte prend sa place (transition CSS fluide sur `bottom`, cf. .marker-label / .marker-image).
         // `logoProximity` fait "descendre" le logo pour qu'il chevauche davantage le point (un grand
-        // logo qui touche juste le point du bout de son bord semble quand même loin, vu sa taille) ;
-        // le texte, lui, reste calé juste au-dessus du logo (même écart de 6px, quelle que soit la valeur).
+        // logo qui touche juste le point du bout de son bord semble quand même loin, vu sa taille).
+        // On compense aussi la marge transparente détectée dans l'image (cf. analyzeLogoBounds) :
+        // un logo fin dans un carré très transparent ne doit pas sembler loin juste à cause du carré.
         const size = m.size || DEFAULT_LOGO_SIZE;
-        const imgBottom = -size * logoProximity;
+        const padTop = size * (m.visTopFrac || 0);
+        const padBottom = size * (1 - (m.visBottomFrac != null ? m.visBottomFrac : 1));
+        const imgBottom = -size * logoProximity - padBottom;
         imgEl.style.bottom = imgBottom + 'px';
-        txtEl.style.bottom = logoShown ? (imgBottom + size + 6) + 'px' : '0px';
+        txtEl.style.bottom = logoShown ? (imgBottom + size - padTop + 6) + 'px' : '0px';
 
         // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
         const backEl = m.markerBack.getElement();
@@ -734,8 +761,10 @@
     // L'eau suit un simple préréglage sombre dédié (un bleu clair assombri finit trop terne).
     let landLight = '#e0e0e0';
     let roadLight = '#ffffff';
-    let waterCustomized = false;
-    const WATER_BY_THEME = { light: '#81c8df', dark: '#377a90' };
+    // L'eau a ses deux couleurs propres (pas dérivées l'une de l'autre) : une référence Jour et une
+    // référence Nuit, chacune mise à jour uniquement quand on l'édite dans le thème correspondant.
+    let waterLight = '#81c8df';
+    let waterDark = '#377a90';
     const NIGHT_LAND_L = 0.10;  // luminosité cible du sol en thème Nuit
     const NIGHT_ROAD_L = 0.32;  // ... et des routes, volontairement plus claire que le sol
 
@@ -781,14 +810,21 @@
         if (key === 'land') landLight = value; else if (key === 'road') roadLight = value;
     }
 
+    // Pareil pour l'eau, mais dans les deux sens (elle a ses deux couleurs propres, pas dérivées).
+    function onWaterColorInput(value) {
+        if (document.body.classList.contains('theme-dark')) waterDark = value; else waterLight = value;
+    }
+
     function toggleTheme() {
         const dark = document.body.classList.toggle('theme-dark');
         document.body.classList.toggle('theme-light', !dark);
         document.getElementById('theme-label').innerText = dark ? 'Nuit' : 'Jour';
         try { localStorage.setItem('cm-theme', dark ? 'dark' : 'light'); } catch(e) {}
+        // Toujours resynchronisé dans les deux sens, sans "verrou" permanent qui pourrait bloquer
+        // le changement (c'était le bug : l'eau restait coincée après le chargement d'un projet).
         document.getElementById('color-land').value = dark ? darkenForNight(landLight, NIGHT_LAND_L) : landLight;
         document.getElementById('color-road').value = dark ? darkenForNight(roadLight, NIGHT_ROAD_L) : roadLight;
-        if (!waterCustomized) document.getElementById('color-water').value = dark ? WATER_BY_THEME.dark : WATER_BY_THEME.light;
+        document.getElementById('color-water').value = dark ? waterDark : waterLight;
         updateColors();
     }
     (function initTheme() {
@@ -831,10 +867,19 @@
         if (saved === 'off') document.body.classList.add('no-grid');
     })();
 
+    // Flash bref (façon confirmation HUD) rejoué à chaque clic, même répété coup sur coup
+    function pulseHeader(el) {
+        el.classList.remove('pulse');
+        void el.offsetWidth; // force le reflow pour relancer l'animation CSS
+        el.classList.add('pulse');
+    }
+
     // --- MENUS REPLIABLES (chaque section du panneau, pour ne pas l'allonger inutilement) ---
     function toggleSection(id) {
         const collapsed = document.getElementById(id + '-body').classList.toggle('collapsed');
-        document.getElementById(id + '-h3').classList.toggle('collapsed', collapsed);
+        const h3 = document.getElementById(id + '-h3');
+        h3.classList.toggle('collapsed', collapsed);
+        pulseHeader(h3);
         try { localStorage.setItem('cm-collapsed-' + id, collapsed ? '1' : '0'); } catch(e) {}
     }
     ['nav', 'style', 'groups', 'logos', 'arrows', 'video'].forEach(id => {
@@ -1007,7 +1052,9 @@
             groupId: gid,
             logoVisible: true,
             textVisible: true,
-            pointVisible: true
+            pointVisible: true,
+            visTopFrac: 0,    // marge transparente au-dessus du contenu visible (0-1, détectée async)
+            visBottomFrac: 1  // ... et en dessous — cf. analyzeLogoBounds()
         };
 
         // Survol : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif).
@@ -1026,7 +1073,9 @@
             // Le logo était masqué : on lui fait de la place, le texte recule temporairement
             if (wasHidden) {
                 const size = markerObj.size || DEFAULT_LOGO_SIZE;
-                labelEl.style.bottom = (-size * logoProximity + size + 6) + 'px';
+                const padTop = size * (markerObj.visTopFrac || 0);
+                const padBottom = size * (1 - (markerObj.visBottomFrac != null ? markerObj.visBottomFrac : 1));
+                labelEl.style.bottom = (-size * logoProximity - padBottom + size - padTop + 6) + 'px';
             }
         };
         const onHoverLeave = () => {
@@ -1044,6 +1093,48 @@
         markers.push(markerObj);
         refreshMarkerVisibility(markerObj);
         updateMarkerUI();
+
+        // Détecte la vraie zone visible (non transparente) de l'image, puis repositionne une fois connue
+        analyzeLogoBounds(imgUrl, (topFrac, bottomFrac) => {
+            markerObj.visTopFrac = topFrac;
+            markerObj.visBottomFrac = bottomFrac;
+            refreshMarkerVisibility(markerObj);
+        });
+    }
+
+    // Détecte, dans une image (dataURL ou URL), la première et la dernière ligne contenant un pixel
+    // non transparent, pour ignorer les marges transparentes dans les calculs de proximité au point
+    // (un logo fin dans un carré très transparent ne doit pas sembler loin juste à cause du carré).
+    // Best effort : en cas d'échec (image cross-origin illisible, etc.), on suppose 0-1 (pas de marge).
+    function analyzeLogoBounds(imgUrl, callback) {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const w = img.naturalWidth, h = img.naturalHeight;
+                if (!w || !h) { callback(0, 1); return; }
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const data = ctx.getImageData(0, 0, w, h).data;
+                const ALPHA_THRESHOLD = 12;
+                let top = -1, bottom = -1;
+                for (let y = 0; y < h; y++) {
+                    const rowStart = y * w * 4;
+                    let rowHasContent = false;
+                    for (let x = 0; x < w; x++) {
+                        if (data[rowStart + x * 4 + 3] > ALPHA_THRESHOLD) { rowHasContent = true; break; }
+                    }
+                    if (rowHasContent) { if (top < 0) top = y; bottom = y; }
+                }
+                if (top < 0) { callback(0, 1); return; } // image entièrement transparente
+                callback(top / h, (bottom + 1) / h);
+            } catch (e) {
+                callback(0, 1);
+            }
+        };
+        img.onerror = () => callback(0, 1);
+        img.src = imgUrl;
     }
 
     // Ordre d'affichage : par groupe (dans l'ordre des Groupes ci-dessus, non-groupés à la fin),
@@ -1059,12 +1150,16 @@
         });
     }
 
-    // Repli individuel de chaque section de groupe dans la liste des repères
+    // Repli individuel de chaque section de groupe dans la liste des repères. On modifie les éléments
+    // DOM existants en place (pas de updateMarkerUI() ici) : celui-ci reconstruit toute la liste à
+    // chaque fois, donc un élément recréé porterait déjà la classe finale et rien n'animerait.
     let collapsedMarkerSections = new Set();
     function toggleMarkerGroupSection(key) {
-        if (collapsedMarkerSections.has(key)) collapsedMarkerSections.delete(key);
-        else collapsedMarkerSections.add(key);
-        updateMarkerUI();
+        const collapsed = collapsedMarkerSections.has(key) ? (collapsedMarkerSections.delete(key), false) : (collapsedMarkerSections.add(key), true);
+        const head = document.querySelector('#markers-list .group-divider[data-section="' + key + '"]');
+        const body = document.querySelector('#markers-list .group-section-body[data-section="' + key + '"]');
+        if (head) { head.classList.toggle('collapsed', collapsed); pulseHeader(head); }
+        if (body) body.classList.toggle('collapsed', collapsed);
     }
 
     function updateMarkerUI() {
@@ -1084,15 +1179,21 @@
 
                 const head = document.createElement('div');
                 head.className = 'group-divider' + (isCollapsed ? ' collapsed' : '');
+                head.dataset.section = sectionKey;
                 head.onclick = () => toggleMarkerGroupSection(sectionKey);
                 head.innerHTML = (g
                     ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
                     : `— SANS GROUPE —`) + `<span class="gd-chevron">&#9660;</span>`;
                 list.appendChild(head);
 
+                const sectionBody = document.createElement('div');
+                sectionBody.className = 'group-section-body' + (isCollapsed ? ' collapsed' : '');
+                sectionBody.dataset.section = sectionKey;
+                list.appendChild(sectionBody);
+
                 currentBody = document.createElement('div');
-                currentBody.className = 'group-section-body' + (isCollapsed ? ' collapsed' : '');
-                list.appendChild(currentBody);
+                currentBody.className = 'gsb-inner'; // les items sont ajoutés ici (cf. .gsb-inner)
+                sectionBody.appendChild(currentBody);
             }
 
             const div = document.createElement('div');
@@ -1478,11 +1579,15 @@
             // chargées (au lieu de garder telles quelles d'éventuelles anciennes couleurs sombres).
             landLight = data.colors.land;
             roadLight = data.colors.road || '#ffffff';
+            // Même logique pour l'eau : la couleur chargée devient la référence du thème courant,
+            // sans jamais verrouiller le prochain toggle Jour/Nuit (c'était le bug).
             if (document.body.classList.contains('theme-dark')) {
                 document.getElementById('color-land').value = darkenForNight(landLight, NIGHT_LAND_L);
                 document.getElementById('color-road').value = darkenForNight(roadLight, NIGHT_ROAD_L);
+                waterDark = data.colors.water;
+            } else {
+                waterLight = data.colors.water;
             }
-            waterCustomized = true;
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
@@ -1646,7 +1751,7 @@
                 </div>
                 <div class="af-row">
                     <span>Raccourcir</span>
-                    <input type="range" min="0" max="0.4" step="0.02" value="${a.shorten || 0}" oninput="setArrowField('${a.id}','shorten',parseFloat(this.value))" title="Écarte les deux bouts de la flèche des centres des points">
+                    <input type="range" min="0" max="80" step="2" value="${a.shorten || 0}" oninput="setArrowField('${a.id}','shorten',parseFloat(this.value))" title="Écarte les deux bouts de la flèche des centres des points (en pixels)">
                 </div>
                 <div class="af-row">
                     <span>&Eacute;paiss.</span>
@@ -1733,11 +1838,14 @@
                 const [e1, e2, e3, main, head, mover] = seg.children;
 
                 // Raccourcit symétriquement les deux bouts (loin des centres des points) selon le
-                // curseur "Raccourcir" — utile pour désencombrer un point où plusieurs flèches convergent
-                const shortenFrac = Math.min(0.45, Math.max(0, a.shorten || 0));
-                if (shortenFrac > 0) {
+                // curseur "Raccourcir" — utile pour désencombrer un point où plusieurs flèches convergent.
+                // En pixels fixes (pas une fraction de la longueur) : sinon la même valeur de curseur
+                // coupait beaucoup plus sur une grande flèche que sur une courte.
+                const shortenPx = Math.max(0, a.shorten || 0);
+                if (shortenPx > 0) {
+                    const dist0 = Math.hypot(e.x - s.x, e.y - s.y);
+                    const pull = Math.min(shortenPx, dist0 * 0.45); // jamais plus de 45% par bout (évite l'inversion sur une flèche très courte)
                     const ang0 = Math.atan2(e.y - s.y, e.x - s.x);
-                    const pull = Math.hypot(e.x - s.x, e.y - s.y) * shortenFrac;
                     s = { x: s.x + pull * Math.cos(ang0), y: s.y + pull * Math.sin(ang0) };
                     e = { x: e.x - pull * Math.cos(ang0), y: e.y - pull * Math.sin(ang0) };
                 }
