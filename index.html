@@ -315,6 +315,9 @@
             transition: grid-template-rows .32s cubic-bezier(.2,.9,.25,1), opacity .26s ease;
         }
         .group-section-body.collapsed { grid-template-rows: 0fr; opacity: 0; }
+        /* Pendant une recherche de logo, on déplie tout pour que les résultats restent visibles */
+        #markers-list.searching .group-section-body.collapsed { grid-template-rows: 1fr; opacity: 1; }
+        #markers-list.searching .group-divider.collapsed .gd-chevron { transform: none; }
         .group-section-body > .gsb-inner { overflow: hidden; min-height: 0; }
 
         /* ============================================================
@@ -563,6 +566,10 @@
                        oninput="updateLogoProximity(this.value)" title="Rapproche le logo du point (il le chevauche davantage)">
             </div>
             <input type="file" id="logo-upload" accept="image/*" style="display:none;">
+            <input type="text" id="marker-search" placeholder="Rechercher un logo..." autocomplete="off"
+                   oninput="filterMarkerList()"
+                   onkeydown="if(event.key==='Escape'){ this.value=''; filterMarkerList(); }">
+            <div id="marker-search-empty" style="display:none; font-family:var(--font-mono); font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase;">Aucun logo trouv&eacute;</div>
             <div id="markers-list" style="margin-top:10px;"></div>
         </div></div>
     </div>
@@ -627,7 +634,8 @@
     function getGroup(id) { return groups.find(g => g.id === id); }
     function groupIsVisible(m) { const g = getGroup(m.groupId); return g ? g.visible : true; }
     function isMarkerActive(m) { return (m.logoVisible || m.textVisible) && groupIsVisible(m); }
-    function groupDotColor(groupId) { const g = getGroup(groupId); return g ? g.color : 'var(--accent)'; }
+    const UNGROUPED_DOT_COLOR = '#5f5f5f'; // gris un peu foncé pour les repères sans groupe
+    function groupDotColor(groupId) { const g = getGroup(groupId); return g ? g.color : UNGROUPED_DOT_COLOR; }
 
     function refreshMarkerVisibility(m) {
         const el = m.markerFront.getElement();
@@ -889,6 +897,9 @@
     });
 
     // --- NAVIGATION ---
+    document.getElementById('search-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); searchLocation(); }
+    });
     async function searchLocation() {
         const query = document.getElementById('search-input').value;
         if(!query) return;
@@ -1183,7 +1194,7 @@
                 head.onclick = () => toggleMarkerGroupSection(sectionKey);
                 head.innerHTML = (g
                     ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
-                    : `— SANS GROUPE —`) + `<span class="gd-chevron">&#9660;</span>`;
+                    : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR};"></span> SANS GROUPE`) + `<span class="gd-chevron">&#9660;</span>`;
                 list.appendChild(head);
 
                 const sectionBody = document.createElement('div');
@@ -1221,7 +1232,7 @@
                 <div class="size-row">
                     <span>Taille</span>
                     <input type="range" min="24" max="220" step="2" value="${m.size || DEFAULT_LOGO_SIZE}"
-                           oninput="updateMarkerSize(${i}, this.value)">
+                           oninput="updateMarkerSize(${i}, this.value, this)">
                     <span class="size-val">${m.size || DEFAULT_LOGO_SIZE}px</span>
                 </div>
                 <div class="group-row">
@@ -1234,9 +1245,38 @@
         });
         const st = document.getElementById('footer-status');
         if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
+        filterMarkerList();
         updateGroupCounts();
         updateArrowUI();
         renderArrows();
+    }
+
+    // Recherche dans la liste des logos : filtre les fiches par nom (le champ de recherche est hors
+    // de la liste, donc sa valeur survit aux reconstructions de updateMarkerUI qui rappelle ceci).
+    // Pendant une recherche, les groupes repliés sont ouverts (cf. CSS #markers-list.searching) pour
+    // que les résultats ne restent pas cachés, et les groupes sans résultat disparaissent.
+    function filterMarkerList() {
+        const input = document.getElementById('marker-search');
+        const q = (input ? input.value : '').trim().toLowerCase();
+        const list = document.getElementById('markers-list');
+        list.classList.toggle('searching', !!q);
+        let total = 0;
+        list.querySelectorAll('.group-section-body').forEach(body => {
+            let matches = 0;
+            body.querySelectorAll('.list-item').forEach(row => {
+                const name = row.querySelector('input[type="text"]').value.toLowerCase();
+                const hit = !q || name.includes(q);
+                row.style.display = hit ? '' : 'none';
+                if (hit) matches++;
+            });
+            total += matches;
+            const hide = !!q && matches === 0;
+            body.style.display = hide ? 'none' : '';
+            const head = list.querySelector('.group-divider[data-section="' + body.dataset.section + '"]');
+            if (head) head.style.display = hide ? 'none' : '';
+        });
+        const empty = document.getElementById('marker-search-empty');
+        if (empty) empty.style.display = (q && total === 0) ? '' : 'none';
     }
 
     // Rafraîchit uniquement le compteur de membres de chaque groupe (léger, pas de re-render complet)
@@ -1249,16 +1289,17 @@
         });
     }
 
-    function updateMarkerSize(index, val) {
+    function updateMarkerSize(index, val, sliderEl) {
         const size = parseInt(val, 10);
         markers[index].size = size;
         const imgEl = markers[index].markerFront.getElement().querySelector('.marker-image');
         imgEl.style.width = size + 'px';
         imgEl.style.height = size + 'px';
         refreshMarkerVisibility(markers[index]); // le texte peut devoir reculer/avancer avec la nouvelle taille
-        // Mise à jour de l'étiquette de valeur sans re-render complet
-        const row = document.querySelectorAll('#markers-list .list-item')[index];
-        if (row) { const v = row.querySelector('.size-val'); if (v) v.innerText = size + 'px'; }
+        // Mise à jour de l'étiquette de valeur sans re-render complet (via le curseur lui-même :
+        // la liste est triée par groupe/nom, donc l'index du marqueur ≠ la position de sa fiche)
+        const v = sliderEl && sliderEl.parentElement.querySelector('.size-val');
+        if (v) v.innerText = size + 'px';
     }
 
     function moveMarker(index, direction) {
