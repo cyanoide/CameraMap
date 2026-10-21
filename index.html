@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📍 Camera Map // Cyanoïde</title>
+    <title>Camera Map // Cyanoïde</title>
     <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📍</text></svg>">
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><path d=%22M8 14.5s4.5-4.3 4.5-8A4.5 4.5 0 0 0 3.5 6.5c0 3.7 4.5 8 4.5 8z%22 fill=%22%230000ff%22/><circle cx=%228%22 cy=%226.5%22 r=%221.7%22 fill=%22white%22/></svg>">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,6 +41,9 @@
             --vignette: rgba(0, 0, 0, 0.15);
             --danger: #d92b3f;
             --ok: #1f9d55;
+            --hi: rgba(255, 255, 255, 0.75);   /* liseré de lumière en haut des éléments (relief) */
+            --shade: rgba(0, 0, 80, 0.10);     /* ombre fine en dessous */
+            --track: rgba(0, 0, 255, 0.16);    /* rail des curseurs */
         }
 
         /* --- THÈME NUIT --- */
@@ -61,6 +64,9 @@
             --vignette: rgba(0, 0, 0, 0.45);
             --danger: #ff4757;
             --ok: #2ecc71;
+            --hi: rgba(255, 255, 255, 0.07);
+            --shade: rgba(0, 0, 0, 0.55);
+            --track: rgba(255, 255, 0, 0.16);
         }
 
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -152,7 +158,7 @@
            compte comme un item flex à part entière ; on pousse juste le chevron via margin-left:auto */
         h3.h3-toggle { display: flex; align-items: center; cursor: pointer; user-select: none; }
         /* Timing "mécanique" (pas de rebond organique) façon HUD/terminal plutôt qu'une easing molle */
-        h3.h3-toggle .h3-chevron { margin-left: auto; padding-left: 8px; transition: transform .3s cubic-bezier(.2,.9,.25,1); font-size: 10px; color: var(--accent); }
+        h3.h3-toggle .h3-chevron { display: flex; align-items: center; margin-left: auto; margin-right: 2px; transition: transform .3s cubic-bezier(.2,.9,.25,1); font-size: 10px; color: var(--accent); }
         h3.h3-toggle.collapsed .h3-chevron { transform: rotate(-90deg); }
 
         /* Flash d'accent bref sur la bordure au moment du clic (déclenché en JS, cf. pulseHeader()) */
@@ -184,6 +190,14 @@
         input[type="text"]::placeholder { color: var(--muted); }
         input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
 
+
+        /* --- ICÔNES (sprite SVG, trait fin façon HUD, suivent currentColor) --- */
+        .ico { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5;
+               stroke-linecap: square; stroke-linejoin: miter; vertical-align: -2px; pointer-events: none; }
+        button:not(.mini-btn) > .ico { margin-right: 7px; }
+        .hud-btn > .ico { margin-right: 0; }
+        .h3-chevron .ico, .gd-chevron .ico { width: 10px; height: 10px; margin: 0; vertical-align: middle; }
+
         /* --- BOUTONS --- */
         .btn-grid { display: flex; gap: 8px; margin-bottom: 5px; }
         button {
@@ -194,7 +208,8 @@
             text-transform: uppercase; letter-spacing: 1.5px;
         }
         button:hover { border-color: var(--accent); background: var(--item-hover); box-shadow: 0 0 12px var(--accent-glow); }
-        button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+        button:active { transform: translateY(1px); }
+        button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; box-shadow: 0 0 14px var(--accent-glow); }
         button.primary:hover { filter: brightness(1.1); background: var(--accent); }
         button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
         button.record { background: var(--danger); color: #fff; border-color: var(--danger); }
@@ -202,6 +217,43 @@
         button.save { color: var(--ok); border-color: var(--ok); }
         button.save:hover { background: rgba(31,157,85,0.12); border-color: var(--ok); box-shadow: 0 0 12px rgba(31,157,85,0.25); }
         button.load { color: var(--accent); }
+
+        /* --- SECTION VIDÉO : une seule colonne, espacement régulier, bords gauche/droit alignés (10px) --- */
+        .video-stack { display: flex; flex-direction: column; gap: 8px; }
+        .video-stack > button { width: 100%; flex: none; }
+        #keyframes-list { display: flex; flex-direction: column; gap: 8px; }
+        #keyframes-list:empty { display: none; }
+        #keyframes-list .list-item { margin-bottom: 0; padding: 6px 10px 6px 6px; }
+        #keyframes-list .list-item input[type="text"] { padding: 6px 4px; }
+        .speed-card { display: flex; flex-direction: column; gap: 10px; padding: 10px;
+            background: var(--bg-field); border: 1px solid var(--border); border-radius: 2px; }
+        .speed-head { display: flex; align-items: center; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+        .speed-head span:last-child { color: var(--text); letter-spacing: 1px; }
+        .speed-card input[type="range"] { width: 100%; margin: 0; display: block; }
+        .speed-card button { width: 100%; flex: none; }
+
+        /* --- SÉLECTEUR DE PAYS (liste déroulante à cases à cocher + recherche) --- */
+        .cc { margin-bottom: 5px; }
+        .cc-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            text-align: left; padding: 8px 10px; background: var(--bg-field); letter-spacing: 1px; }
+        .cc-toggle #cc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cc.open > .cc-toggle { border-color: var(--border-strong); }
+        .cc.open > .cc-toggle .fold-chev { transform: none; color: var(--accent); }
+        .cc-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+        .cc-body input[type="text"] { margin-bottom: 0; }
+        .cc-list { max-height: 190px; overflow-y: auto; border: 1px solid var(--border); border-radius: 2px; background: var(--bg-field); }
+        .cc-list::-webkit-scrollbar { width: 3px; }
+        .cc-list::-webkit-scrollbar-thumb { background: var(--border-strong); }
+        .cc-row { display: flex; align-items: center; gap: 9px; padding: 5px 9px; cursor: pointer;
+            border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; user-select: none; }
+        .cc-row:last-child { border-bottom: none; }
+        .cc-row:hover { background: var(--item-hover); }
+        .cc-row.sel { background: var(--item-selected); color: var(--accent); }
+        .cc-row input { accent-color: var(--accent); margin: 0; flex: none; cursor: pointer; }
+        .cc-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cc-row em { font-style: normal; font-size: 9px; letter-spacing: 1px; color: var(--muted); }
+        .cc-empty { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 2px 2px 4px; }
 
         .search-box { display: flex; gap: 5px; margin-bottom: 10px; }
         .search-box input { margin-bottom: 0; }
@@ -218,8 +270,53 @@
             border: 1px solid var(--border);
             font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
         }
-        input[type="color"] { -webkit-appearance: none; appearance: none; border: 1px solid var(--border); width: 26px; height: 20px; padding: 0; background: none; cursor: pointer; border-radius: 1px; }
-        input[type="range"] { width: 110px; cursor: pointer; accent-color: var(--accent); }
+        /* ---- Curseurs HUD : rail fin gradué, partie remplie en accent, curseur rectangulaire lumineux ---- */
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none; background: transparent;
+            width: 110px; height: 18px; margin: 0; cursor: pointer; --p: 50%;
+        }
+        input[type="range"]:focus { outline: none; }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 18px;
+            background:
+                linear-gradient(90deg, var(--accent) var(--p), transparent var(--p)) 0 50% / 100% 3px no-repeat,
+                linear-gradient(var(--track), var(--track)) 0 50% / 100% 3px no-repeat,
+                repeating-linear-gradient(90deg, var(--border-strong) 0 1px, transparent 1px calc((100% - 1px) / 10)) 0 100% / 100% 4px no-repeat;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 9px; height: 16px; margin-top: 1px; border: none; border-radius: 1px;
+            background:
+                linear-gradient(90deg, transparent 4px, rgba(255,255,255,.75) 4px 5px, transparent 5px),
+                var(--accent);
+            transition: filter .15s ease, transform .15s ease;
+        }
+        input[type="range"]:hover::-webkit-slider-thumb { filter: brightness(1.2); }
+        input[type="range"]:active::-webkit-slider-thumb { transform: scaleY(1.12); }
+        input[type="range"]::-moz-range-track { height: 3px; background: var(--track); }
+        input[type="range"]::-moz-range-progress { height: 3px; background: var(--accent); }
+        input[type="range"]::-moz-range-thumb {
+            width: 9px; height: 16px; border: none; border-radius: 1px; background: var(--accent);
+        }
+
+        /* ---- Sélecteurs de couleur : pastille ronde dans un anneau, avec la lueur de sa propre couleur (--c, posé en JS) ---- */
+        input[type="color"] {
+            -webkit-appearance: none; appearance: none; flex: none;
+            width: 24px; height: 24px; padding: 3px; cursor: pointer; --c: transparent;
+            background: transparent; border: 1px solid var(--border-strong); border-radius: 50%;
+            box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent);
+            transition: box-shadow .2s ease, border-color .2s ease, transform .15s ease;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }
+        input[type="color"]:hover { border-color: var(--accent); transform: scale(1.1); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 75%, transparent); }
+
+        /* Lecture de la valeur (ajoutée en JS) à gauche du contrôle, dans les lignes .color-row */
+        .color-row .rv, .color-row .cv {
+            margin-left: auto; margin-right: 10px; flex: none; text-align: right;
+            font-size: 10px; letter-spacing: 1px; color: var(--text); opacity: .75;
+        }
 
         /* ============================================================
            MARQUEURS (sur la carte)
@@ -248,28 +345,65 @@
 
         /* --- LISTE ITEMS --- */
         .list-item {
-            background: var(--bg-field); margin-bottom: 5px; padding: 8px;
-            border-radius: 2px; border: 1px solid var(--border); border-left: 2px solid var(--border-strong);
-            display: flex; align-items: center; gap: 5px;
+            position: relative;
+            background: var(--bg-field);
+            margin-bottom: 6px; padding: 8px 9px;
+            border-radius: 2px; border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 6px;
+            transition: border-color .15s ease;
         }
+        .list-item:hover { border-color: var(--border-strong); }
+        /* Repères d'angle façon viseur HUD : uniquement sur la fiche dépliée (= la fiche "active") */
+        .marker-item.open::before, .marker-item.open::after, .arrow-fiche.open::before, .arrow-fiche.open::after {
+            content: ""; position: absolute; width: 7px; height: 7px; pointer-events: none;
+            border: 0 solid var(--accent);
+        }
+        .marker-item.open::before, .arrow-fiche.open::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
+        .marker-item.open::after, .arrow-fiche.open::after { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
+
+        /* Fiches repliables (repère / flèche) : en-tête compact, détails dépliables */
+        .fold {
+            display: grid; grid-template-rows: 1fr; opacity: 1;
+            transition: grid-template-rows .32s cubic-bezier(.2,.9,.25,1), opacity .26s ease, visibility 0s;
+        }
+        .fold.collapsed { grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+            transition: grid-template-rows .32s cubic-bezier(.2,.9,.25,1), opacity .26s ease, visibility 0s .32s; }
+        .fold > .fold-inner { overflow: hidden; min-height: 0; }   /* pas de padding ici : il empêcherait 0fr */
+        .fold-chev { display: flex; flex: none; color: var(--muted); transform: rotate(-90deg); transition: transform .3s cubic-bezier(.2,.9,.25,1), color .2s; }
+        .fold-chev .ico { width: 10px; height: 10px; margin: 0; }
+        .open > .mi-head .fold-chev, .open > .af-head .fold-chev { transform: none; color: var(--accent); }
+
+        .marker-item { display: block; padding: 0; }
+        .mi-head { display: flex; align-items: center; gap: 7px; padding: 7px 8px; cursor: pointer; user-select: none; }
+        .mi-head input[type="text"] { cursor: text; user-select: text; flex: 1; min-width: 0; }
+        .mi-thumb { width: 22px; height: 22px; object-fit: contain; flex: none; }
+        .mi-details { display: flex; flex-direction: column; gap: 9px; padding: 4px 10px 11px; }
+        .mi-details .size-row, .mi-details .group-row { margin: 0; padding: 0; border: none; }
+        .mi-foot { display: flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+        .mi-foot .mi-sp { flex: 1; }
+        .mi-foot span:first-child { margin-right: 5px; }
         .list-item img { border: 1px solid var(--border); border-radius: 1px; }
-        .list-item input {
+        .list-item input[type="text"] {
             margin: 0; border: none; background: transparent; font-weight: 600; width: 100%;
             color: var(--text); font-size: 12px; font-family: var(--font-main); letter-spacing: .5px;
         }
         .list-item input:focus { background: var(--item-selected); color: var(--text); }
-        .list-item input[type="color"] { width: 26px; height: 20px; flex: none; border: 1px solid var(--border); }
+        .list-item input[type="color"], .arrow-fiche .af-head input[type="color"] { width: 22px; height: 22px; padding: 3px; }
 
-        .action-btns { display: flex; gap: 2px; margin-left: auto; }
+        .action-btns { display: flex; margin-left: auto; }
         .mini-btn {
-            padding: 4px 6px; font-size: 12px; cursor: pointer; color: var(--muted);
+            width: 28px; height: 28px; padding: 0; cursor: pointer; color: var(--text);
             background: transparent; border: 1px solid var(--border); border-radius: 2px;
-            display: flex; align-items: center; justify-content: center; min-width: 22px; flex: none;
+            display: flex; align-items: center; justify-content: center; flex: none;
         }
-        .mini-btn:hover { border-color: var(--accent); color: var(--text); background: var(--item-hover); }
-        .del-btn { color: var(--danger); border-color: rgba(217,43,63,0.4); }
-        .del-btn:hover { background: rgba(217,43,63,0.15); border-color: var(--danger); }
-        .toggle-btn.inactive { color: var(--muted); opacity: 0.4; }
+        .mini-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--item-hover); }
+        .action-btns { gap: 3px; flex: none; }
+        .del-btn { color: var(--danger); border-color: rgba(217,43,63,0.35); }
+        .del-btn:hover { background: rgba(217,43,63,0.15); border-color: var(--danger); color: var(--danger); box-shadow: 0 0 10px rgba(217,43,63,.25); }
+        /* Interrupteurs : actif = couleur d'accent + fond teinté ; inactif = grisé, bordure en pointillés */
+        .toggle-btn { color: var(--accent); background: var(--item-selected); border-color: var(--border-strong); }
+        .toggle-btn.inactive { color: var(--muted); background: transparent; border-style: dashed; border-color: var(--border); opacity: .6; }
+        .toggle-btn.inactive:hover { opacity: 1; color: var(--accent); }
 
         /* --- CONTRÔLE TAILLE LOGO (par marqueur) --- */
         .size-row {
@@ -344,16 +478,21 @@
 
         /* --- FICHE FLÈCHE (panneau) --- */
         .arrow-fiche {
-            background: var(--bg-field); margin-bottom: 8px; padding: 9px;
-            border: 1px solid var(--border); border-left: 2px solid var(--border-strong);
-            border-radius: 2px; display: flex; flex-direction: column; gap: 6px;
+            position: relative;
+            background: var(--bg-field); margin-bottom: 6px; padding: 0;
+            border: 1px solid var(--border); border-radius: 2px;
+            transition: border-color .15s ease;
         }
+        .arrow-fiche:hover { border-color: var(--border-strong); }
+        .arrow-fiche .af-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 10px 11px; }
+        .arrow-fiche .af-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: none; }
         .arrow-fiche .af-head {
-            display: flex; align-items: center; gap: 6px;
+            display: flex; align-items: center; gap: 7px; padding: 7px 8px; cursor: pointer; user-select: none;
             font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
             text-transform: uppercase; color: var(--accent);
         }
-        .arrow-fiche .af-head .af-title { flex: 1; }
+        .arrow-fiche .af-head .af-title { flex: none; }
         .arrow-fiche .af-cols { display: flex; flex-direction: column; gap: 8px; }
         .arrow-fiche .af-col { display: flex; flex-direction: column; gap: 3px; }
         .arrow-fiche label.af-lbl {
@@ -393,41 +532,42 @@
             text-transform: uppercase; color: var(--muted);
         }
         .arrow-fiche .af-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-        .arrow-fiche .af-row input[type="range"] { width: 80px; flex: none; }
+        .arrow-fiche .af-row input[type="range"] { flex: 1; width: auto; min-width: 0; }
+        .arrow-fiche .af-field { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; }
+        .arrow-fiche .af-field select { min-width: 0; }
         .arrow-fiche .af-row input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
 
         /* ============================================================
            CHROME HUD (boutons flottants)
            ============================================================ */
-        .hud-btn {
-            position: absolute; z-index: 20001;
-            padding: 8px 14px; background: var(--bg-panel);
-            border: 1px solid var(--border); border-radius: 2px; color: var(--accent);
-            cursor: pointer; font-family: var(--font-mono); font-size: 11px;
-            letter-spacing: 3px; text-transform: uppercase;
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            transition: .2s ease; display: flex; align-items: center; gap: 10px;
+        /* Les commandes flottantes sont regroupées dans une seule barre compacte (au lieu de 5 boutons empilés) */
+        #hud-bar {
+            position: absolute; top: 20px; right: 20px; z-index: 20001;
+            display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px;
+            max-width: calc(100vw - 440px);
         }
-        .hud-btn:hover { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
-
-        #hide-ui-btn { top: 20px; right: 24px; }
-        #theme-toggle { top: 62px; right: 24px; }
-        #scanlines-toggle { top: 104px; right: 24px; }
-        #hover-toggle { top: 146px; right: 24px; }
-        #grid-toggle { top: 188px; right: 24px; }
+        .hud-btn {
+            padding: 6px 10px; background: var(--bg-panel); flex: none;
+            border: 1px solid var(--border); border-radius: 2px; color: var(--accent);
+            cursor: pointer; font-family: var(--font-mono); font-size: 10px;
+            letter-spacing: 2px; text-transform: uppercase;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            transition: .2s ease; display: flex; align-items: center; gap: 8px;
+        }
+        .hud-btn:hover { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
         .hud-btn .track {
-            width: 34px; height: 16px; border: 1px solid var(--accent); border-radius: 2px;
+            width: 26px; height: 12px; border: 1px solid var(--accent); border-radius: 2px;
             position: relative; opacity: .8; flex: none;
         }
         .hud-btn .thumb {
-            position: absolute; top: 1px; left: 1px; width: 13px; height: 12px;
+            position: absolute; top: 1px; left: 1px; width: 9px; height: 8px;
             background: var(--accent); border-radius: 1px; transition: left .25s ease;
         }
-        body.theme-dark #theme-toggle .thumb { left: 18px; }
-        #scanlines-toggle .thumb { left: 18px; }
+        body.theme-dark #theme-toggle .thumb { left: 14px; }
+        #scanlines-toggle .thumb { left: 14px; }
         body.no-scanlines #scanlines-toggle .thumb { left: 1px; }
-        body.hover-reveal #hover-toggle .thumb { left: 18px; }
-        #grid-toggle .thumb { left: 18px; }
+        body.hover-reveal #hover-toggle .thumb { left: 14px; }
+        #grid-toggle .thumb { left: 14px; }
         body.no-grid #grid-toggle .thumb { left: 1px; }
         body.no-grid #bg-grid { display: none; }
 
@@ -443,10 +583,60 @@
 
         @media (max-width: 640px) {
             #ui-panel { width: calc(100vw - 40px); max-height: 60vh; }
+            #hud-bar { top: auto; bottom: 16px; right: 12px; max-width: calc(100vw - 24px); }
         }
+
+        /* ============================================================
+           RELIEF discret : pas de dégradés ni de biseaux sur les boutons (rendu daté) — aplats nets,
+           profondeur uniquement via bordures, liseré fin et halo au survol. Placé en dernier.
+           ============================================================ */
+        #ui-panel { box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 var(--hi); }
+        .list-item, .cc-toggle, .arrow-fiche, .speed-card, .search-box input[type="text"], #marker-search, #cc-search, #country-picker .cc-list {
+            background: var(--bg-field);
+            box-shadow: 0 1px 0 var(--shade);
+        }
+        button.primary, button.active, .search-box button { background: var(--accent); box-shadow: 0 0 14px var(--accent-glow); }
+        button.primary:hover, button.active:hover { filter: brightness(1.1); background-color: var(--accent); box-shadow: 0 0 18px var(--accent-glow); }
+        button.record { background: var(--danger); box-shadow: none; }
+        button.record:hover { filter: brightness(1.1); }
+        button:active { box-shadow: none; transform: translateY(1px); }
+        .toggle-btn.inactive { box-shadow: none; }
+
+        /* Lignes de réglage (curseur / couleur) : sans cadre, juste un filet pointillé entre deux lignes,
+           pour que ce soit le curseur ou la pastille qui ressorte et non la boîte autour. */
+        .color-row.row-range, .color-row.row-color {
+            background: none; box-shadow: none; border: none; border-radius: 0;
+            border-bottom: 1px dashed var(--border); padding: 8px 2px; margin-bottom: 0;
+        }
+        .color-row.row-range:last-child, .color-row.row-color:last-child { border-bottom: none; }
+        .row-range > span:first-child { flex: none; width: 132px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .row-range input[type="range"] { order: 2; flex: 1; width: auto; min-width: 70px; margin: 0 10px 0 0; }
+        .row-range .rv { order: 3; margin: 0; width: 34px; }
+        .row-color .cv { margin-right: 12px; }
     </style>
 </head>
 <body class="theme-light">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 16 16"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/><path d="M2 14L14 2"/></symbol>
+    <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><circle cx="5.5" cy="6.2" r="1.2"/><path d="M1.5 12l4-4 3 3 2-2 3.5 3.5"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 16 16"><path d="M8 14.5s4.5-4.3 4.5-8A4.5 4.5 0 0 0 3.5 6.5c0 3.7 4.5 8 4.5 8z"/><circle cx="8" cy="6.5" r="1.6"/></symbol>
+    <symbol id="i-text" viewBox="0 0 16 16"><path d="M3 4.5v-1.5h10v1.5M8 3v10M5.5 13h5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3.5M4 7l4-3.5L12 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 3v9.5M4 9l4 3.5L12 9"/></symbol>
+    <symbol id="i-crosshair" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.2"/><path d="M8 1v3.3M8 11.7V15M1 8h3.3M11.7 8H15"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M4.5 3v10l8.5-5z" style="fill:currentColor"/></symbol>
+    <symbol id="i-save" viewBox="0 0 16 16"><path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5M5 13.5v-4h6v4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 3.5h4.5l1.5 1.5h7v8h-13z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c-2.6 2.2-2.6 10.8 0 13M8 1.5c2.6 2.2 2.6 10.8 0 13"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 16 16"><path d="M8 1.5l6 3.2v6.6l-6 3.2-6-3.2V4.7zM2 4.7l6 3.3 6-3.3M8 8v6.5"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><path d="M6 2.5v11"/></symbol>
+  </defs>
+</svg>
 
 <div id="map"></div>
 <svg id="arrow-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -454,7 +644,8 @@
 <div id="overlay-scanlines"></div>
 <div id="overlay-vignette"></div>
 
-<button id="hide-ui-btn" class="hud-btn" onclick="toggleUI()">◧ Interface</button>
+<div id="hud-bar">
+<button id="hide-ui-btn" class="hud-btn" onclick="toggleUI()"><svg class="ico" aria-hidden="true"><use href="#i-panel"/></svg> Interface</button>
 <button id="theme-toggle" class="hud-btn" onclick="toggleTheme()">
     <span class="track"><span class="thumb"></span></span>
     <span id="theme-label">Jour</span>
@@ -471,6 +662,7 @@
     <span class="track"><span class="thumb"></span></span>
     <span>Grille</span>
 </button>
+</div>
 
 <div id="ui-panel">
     <div class="panel-header">
@@ -482,13 +674,13 @@
     <div class="header-decorator">[ &#9679; &#9679; &#9679; &#9675; &#9675; &#9675; ]</div>
 
     <div class="save-load-area">
-        <button class="save" onclick="saveProject()">&#128190; Sauver</button>
-        <button class="load" onclick="document.getElementById('file-input').click()">&#128193; Ouvrir</button>
+        <button class="save" onclick="saveProject()"><svg class="ico" aria-hidden="true"><use href="#i-save"/></svg> Sauver</button>
+        <button class="load" onclick="document.getElementById('file-input').click()"><svg class="ico" aria-hidden="true"><use href="#i-folder"/></svg> Ouvrir</button>
         <input type="file" id="file-input" accept=".json" style="display:none" onchange="loadProject(this)">
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="nav-h3" onclick="toggleSection('nav')">Navigation <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="nav-h3" onclick="toggleSection('nav')">Navigation <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="nav-body" class="collapsible-body"><div class="cb-inner">
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="Ville, Lieu, Adresse...">
@@ -498,11 +690,11 @@
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="style-h3" onclick="toggleSection('style')">Style et Fronti&egrave;res <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="style-h3" onclick="toggleSection('style')">Style et Fronti&egrave;res <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="style-body" class="collapsible-body"><div class="cb-inner">
         <div class="btn-grid" style="margin-bottom:8px;">
-            <button id="btn-sat" onclick="switchStyle('satellite')" class="primary">&#127757; Satellite</button>
-            <button id="btn-plan" onclick="switchStyle('plan')">&#128208; Plan 3D</button>
+            <button id="btn-sat" onclick="switchStyle('satellite')" class="primary"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Satellite</button>
+            <button id="btn-plan" onclick="switchStyle('plan')"><svg class="ico" aria-hidden="true"><use href="#i-cube"/></svg> Plan 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="onLightColorInput('land',this.value); updateColors()"></div>
@@ -510,7 +702,18 @@
             <div class="color-row"><span>Routes</span> <input type="color" id="color-road" value="#ffffff" oninput="onLightColorInput('road',this.value); updateColors()"></div>
         </div>
 
-        <input type="text" id="country-iso" placeholder="Frontières (ex: FR, CN, US)" value="CN">
+        <div class="cc" id="country-picker">
+            <button type="button" class="cc-toggle" onclick="toggleCountryList()" title="Choisir les pays à surligner">
+                <span id="cc-label">Pays à surligner</span>
+                <span class="fold-chev"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span>
+            </button>
+            <div class="fold collapsed" id="cc-fold"><div class="fold-inner"><div class="cc-body">
+                <input type="text" id="cc-search" placeholder="Rechercher un pays..." autocomplete="off"
+                       oninput="filterCountryList()" onkeydown="onCountrySearchKey(event)">
+                <div class="cc-list" id="cc-list"></div>
+                <div class="cc-empty" id="cc-empty" style="display:none;">Aucun pays trouv&eacute;</div>
+            </div></div></div>
+        </div>
 
         <div class="color-row">
             <span>Couleur</span>
@@ -541,7 +744,7 @@
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="groups-h3" onclick="toggleSection('groups')">Groupes <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="groups-h3" onclick="toggleSection('groups')">Groupes <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="groups-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addGroup()" style="border-style:dashed;">+ Nouveau Groupe</button>
@@ -551,14 +754,14 @@
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Logos et Textes <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Logos et Textes <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="logos-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:6px;">
                 <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
             </div>
             <div class="btn-grid" style="margin-bottom:10px;">
-                <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères">&#128444; Tout</button>
-                <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères">&#128205; Tout</button>
+                <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg> Tout</button>
+                <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Tout</button>
             </div>
             <div class="color-row" style="margin-bottom:10px;">
                 <span>Proximité logo</span>
@@ -575,7 +778,7 @@
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="arrows-h3" onclick="toggleSection('arrows')">Flèches <span class="h3-chevron">&#9660;</span></h3>
+        <h3 class="h3-toggle" id="arrows-h3" onclick="toggleSection('arrows')">Flèches <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="arrows-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
@@ -585,16 +788,16 @@
     </div>
 
     <div class="control-group">
-        <h3 class="h3-toggle" id="video-h3" onclick="toggleSection('video')">Vidéo <span class="h3-chevron">&#9660;</span></h3>
-        <div id="video-body" class="collapsible-body"><div class="cb-inner">
+        <h3 class="h3-toggle" id="video-h3" onclick="toggleSection('video')">Vidéo <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
+        <div id="video-body" class="collapsible-body"><div class="cb-inner"><div class="video-stack">
             <button class="primary" onclick="addKeyframe()">+ Ajouter Keyframe</button>
-            <div id="keyframes-list" style="margin-top:5px;"></div>
-            <div style="margin-top:15px; background:var(--bg-field); padding:10px; border:1px solid var(--border); border-radius:2px;">
-                <label style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted);">Vitesse</label>
-                <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" style="width:100%;">
-                <button class="record" onclick="playScene()" style="margin-top:8px;">&#9654; Action</button>
+            <div id="keyframes-list"></div>
+            <div class="speed-card">
+                <div class="speed-head"><span>Vitesse</span><span id="speed-val">0.5&times;</span></div>
+                <input type="range" id="speed-range" min="0.1" max="2" step="0.1" value="0.5" oninput="updateSpeedLabel()">
+                <button class="record" onclick="playScene()"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg> Action</button>
             </div>
-        </div></div>
+        </div></div></div>
     </div>
 
     <div class="footer-hud">
@@ -629,6 +832,22 @@
     let _idSeq = 0;
     function nextId() { return 'id_' + Date.now().toString(36) + '_' + (_idSeq++).toString(36); }
     function escHtml(s) { return String(s).replace(/</g, '&lt;'); }
+    // Icône SVG (sprite <symbol id="i-NOM"> défini en haut du <body>) : suit la couleur du texte
+    // Détails dépliés (ids de repères / de flèches) — en mémoire seulement
+    const expandedFiches = new Set();
+    function toggleFiche(el, id) {
+        const open = !expandedFiches.has(id);
+        if (open) expandedFiches.add(id); else expandedFiches.delete(id);
+        el.classList.toggle('open', open);
+        el.querySelector(':scope > .fold').classList.toggle('collapsed', !open);
+    }
+    // Clic sur l'en-tête d'une fiche (hors boutons / champs) : déplie ou replie ses détails.
+    // On agit sur le DOM existant : les listes sont reconstruites entièrement à chaque changement.
+    function ficheHeadClick(e, el, id) {
+        if (e.target.closest('button, input, select, label')) return;
+        toggleFiche(el, id);
+    }
+    function ico(name) { return '<svg class="ico" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
 
     // --- GROUPES DE LOGOS ---
     function getGroup(id) { return groups.find(g => g.id === id); }
@@ -733,10 +952,10 @@
                 <input type="text" value="${escHtml(g.name)}" oninput="renameGroup('${g.id}', this.value)">
                 <span class="group-count" style="font-family:var(--font-mono); font-size:9px; color:var(--muted); flex:none;">${count}</span>
                 <div class="action-btns">
-                    <button class="mini-btn toggle-btn ${g.visible ? '' : 'inactive'}" title="Afficher/Masquer le groupe" onclick="toggleGroupVisibility('${g.id}')">&#128065;</button>
-                    <button class="mini-btn" title="Basculer les logos du groupe" onclick="toggleGroupLogos('${g.id}')">&#128444;</button>
-                    <button class="mini-btn" title="Basculer les points du groupe" onclick="toggleGroupPoints('${g.id}')">&#128205;</button>
-                    <button class="mini-btn del-btn" title="Supprimer le groupe" onclick="removeGroup('${g.id}')">&#10006;</button>
+                    <button class="mini-btn toggle-btn ${g.visible ? '' : 'inactive'}" title="Afficher/Masquer le groupe" onclick="toggleGroupVisibility('${g.id}')">${ico(g.visible ? 'eye' : 'eye-off')}</button>
+                    <button class="mini-btn" title="Basculer les logos du groupe" onclick="toggleGroupLogos('${g.id}')">${ico('image')}</button>
+                    <button class="mini-btn" title="Basculer les points du groupe" onclick="toggleGroupPoints('${g.id}')">${ico('pin')}</button>
+                    <button class="mini-btn del-btn" title="Supprimer le groupe" onclick="removeGroup('${g.id}')">${ico('x')}</button>
                 </div>
             </div>`;
         }).join('');
@@ -751,8 +970,7 @@
     map.on('style.load', () => {
         addTerrain();
         if(currentStyle === 'plan') applyPlanSettings();
-        const isos = document.getElementById('country-iso').value;
-        if(isos) drawBorders(false);
+        if (selectedCountries.size) drawBorders();
     });
 
     function addTerrain() {
@@ -833,6 +1051,7 @@
         document.getElementById('color-land').value = dark ? darkenForNight(landLight, NIGHT_LAND_L) : landLight;
         document.getElementById('color-road').value = dark ? darkenForNight(roadLight, NIGHT_ROAD_L) : roadLight;
         document.getElementById('color-water').value = dark ? waterDark : waterLight;
+        enhanceControls();
         updateColors();
     }
     (function initTheme() {
@@ -1194,7 +1413,7 @@
                 head.onclick = () => toggleMarkerGroupSection(sectionKey);
                 head.innerHTML = (g
                     ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
-                    : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR};"></span> SANS GROUPE`) + `<span class="gd-chevron">&#9660;</span>`;
+                    : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR};"></span> SANS GROUPE`) + `<span class="gd-chevron">${ico('chevron')}</span>`;
                 list.appendChild(head);
 
                 const sectionBody = document.createElement('div');
@@ -1208,8 +1427,8 @@
             }
 
             const div = document.createElement('div');
-            div.className = 'list-item';
-            div.style.flexWrap = 'wrap';
+            const open = expandedFiches.has(m.id);
+            div.className = 'list-item marker-item' + (open ? ' open' : '');
 
             const logoClass = m.logoVisible ? 'toggle-btn' : 'toggle-btn inactive';
             const textClass = m.textVisible ? 'toggle-btn' : 'toggle-btn inactive';
@@ -1218,28 +1437,37 @@
                 .concat(groups.map(g => `<option value="${g.id}" ${m.groupId === g.id ? 'selected' : ''}>${escHtml(g.name)}</option>`)).join('');
 
             div.innerHTML = `
-                <img src="${m.img}" style="width:20px; height:20px; object-fit:contain;">
-                <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
-                <div class="action-btns">
-                    <button class="mini-btn" onclick="focusMarker(${i})" title="Centrer la carte sur ce point">&#127919;</button>
-                     <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">&#8593;</button>
-                    <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">&#8595;</button>
-                    <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">&#128444;</button>
-                    <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">T</button>
-                    <button class="mini-btn ${pointClass}" onclick="togglePoint(${i})" title="Afficher/Masquer le Point">&#128205;</button>
-                    <button class="mini-btn del-btn" onclick="removeMarker(${i})">&#10006;</button>
+                <div class="mi-head" onclick="ficheHeadClick(event, this.parentElement, '${m.id}')">
+                    <span class="fold-chev">${ico('chevron')}</span>
+                    <img class="mi-thumb" src="${m.img}" alt="">
+                    <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
+                    <div class="action-btns">
+                        <button class="mini-btn" onclick="focusMarker(${i})" title="Centrer la carte sur ce point">${ico('crosshair')}</button>
+                        <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">${ico('image')}</button>
+                        <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">${ico('text')}</button>
+                        <button class="mini-btn ${pointClass}" onclick="togglePoint(${i})" title="Afficher/Masquer le Point">${ico('pin')}</button>
+                    </div>
                 </div>
-                <div class="size-row">
-                    <span>Taille</span>
-                    <input type="range" min="24" max="220" step="2" value="${m.size || DEFAULT_LOGO_SIZE}"
-                           oninput="updateMarkerSize(${i}, this.value, this)">
-                    <span class="size-val">${m.size || DEFAULT_LOGO_SIZE}px</span>
-                </div>
-                <div class="group-row">
-                    <span class="group-dot" data-group="${m.groupId || ''}" style="background:${groupDotColor(m.groupId)};"></span>
-                    <span>Groupe</span>
-                    <select onchange="assignMarkerGroup(${i}, this.value)">${groupOpts}</select>
-                </div>
+                <div class="fold ${open ? '' : 'collapsed'}"><div class="fold-inner"><div class="mi-details">
+                    <div class="size-row">
+                        <span>Taille</span>
+                        <input type="range" min="24" max="220" step="2" value="${m.size || DEFAULT_LOGO_SIZE}"
+                               oninput="updateMarkerSize(${i}, this.value, this)">
+                        <span class="size-val">${m.size || DEFAULT_LOGO_SIZE}px</span>
+                    </div>
+                    <div class="group-row">
+                        <span class="group-dot" data-group="${m.groupId || ''}" style="background:${groupDotColor(m.groupId)};"></span>
+                        <span>Groupe</span>
+                        <select onchange="assignMarkerGroup(${i}, this.value)">${groupOpts}</select>
+                    </div>
+                    <div class="mi-foot">
+                        <span>Ordre</span>
+                        <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">${ico('up')}</button>
+                        <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">${ico('down')}</button>
+                        <span class="mi-sp"></span>
+                        <button class="mini-btn del-btn" onclick="removeMarker(${i})" title="Supprimer ce repère">${ico('x')}</button>
+                    </div>
+                </div></div></div>
             `;
             currentBody.appendChild(div);
         });
@@ -1402,15 +1630,16 @@
         if (map.getSource('custom-borders')) map.removeSource('custom-borders');
     }
 
-    function drawBorders(force = true) {
-        const input = document.getElementById('country-iso').value;
+    function drawBorders() {
+        const codes = getCountryCodes();
         const color = document.getElementById('border-color').value;
         const opacity = document.getElementById('border-opacity').value;
 
-        if (!input && !force) return;
-        const codes = input.split(',').map(c => c.trim().toUpperCase());
         removeBordersLayer();
-        if (!map.isStyleLoaded()) return;
+        if (!codes.length) return;
+        // Style pas encore prêt (ex. au tout premier chargement ou juste après un changement de style) :
+        // on réessaie quand la carte est au repos, sinon le surlignage par défaut n'apparaissait jamais
+        if (!map.isStyleLoaded()) { map.once('idle', drawBorders); return; }
 
         const dashArray = borderDashed ? [borderDashSize, borderDashSize] : [1, 0];
 
@@ -1459,7 +1688,145 @@
         }
     }
 
-    function clearBorders() { removeBordersLayer(); }
+    // Effacer = tout décocher (les pays cochés SONT les pays surlignés) + retirer le calque
+    function clearBorders() { setCountrySelection([]); removeBordersLayer(); }
+
+    // --- Curseurs & sélecteurs de couleur : remplissage du rail (--p), lueur de la pastille (--c) et
+    // lecture de la valeur. Les valeurs changées par programme (thème, chargement) n'émettent pas
+    // d'événement `input` : on rappelle enhanceControls() à ces endroits.
+    function syncRange(el) {
+        const min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100;
+        el.style.setProperty('--p', (max > min ? (parseFloat(el.value) - min) / (max - min) * 100 : 0) + '%');
+        const row = el.parentElement;
+        if (row && row.classList.contains('color-row')) {
+            row.classList.add('row-range');
+            let rv = row.querySelector(':scope > .rv');
+            if (!rv) { rv = document.createElement('span'); rv.className = 'rv'; row.insertBefore(rv, el); }
+            rv.textContent = String(parseFloat(el.value));
+        }
+    }
+    function syncColor(el) {
+        el.style.setProperty('--c', el.value);
+        const row = el.parentElement;
+        if (row && row.classList.contains('color-row')) {
+            row.classList.add('row-color');
+            let cv = row.querySelector(':scope > .cv');
+            if (!cv) { cv = document.createElement('span'); cv.className = 'cv'; row.insertBefore(cv, el); }
+            cv.textContent = el.value.toUpperCase();
+        }
+    }
+    function enhanceControls(root) {
+        (root || document).querySelectorAll('input[type="range"]').forEach(syncRange);
+        (root || document).querySelectorAll('input[type="color"]').forEach(syncColor);
+    }
+    document.addEventListener('input', e => {
+        const t = e.target;
+        if (!t.matches) return;
+        if (t.matches('input[type="range"]')) syncRange(t);
+        else if (t.matches('input[type="color"]')) syncColor(t);
+    });
+    // Les listes (repères, flèches, groupes, keyframes) sont reconstruites en innerHTML : on
+    // initialise les nouveaux curseurs/pastilles au fur et à mesure qu'ils apparaissent
+    new MutationObserver(muts => muts.forEach(m => m.addedNodes.forEach(n => {
+        if (n.nodeType === 1 && (n.matches('input[type="range"], input[type="color"]') || n.querySelector('input[type="range"], input[type="color"]'))) enhanceControls(n.parentElement || n);
+    }))).observe(document.getElementById('ui-panel'), { childList: true, subtree: true });
+
+    // --- PAYS À SURLIGNER : liste déroulante à cases à cocher + recherche ---
+    const COUNTRY_CODES = ('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ '
+        + 'CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR '
+        + 'GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP '
+        + 'KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ '
+        + 'NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW '
+        + 'SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ '
+        + 'UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW').split(/\s+/);
+    const selectedCountries = new Set(['CN']); // même défaut qu'avant (Chine)
+    let regionNames = null;
+    try { regionNames = new Intl.DisplayNames(['fr'], { type: 'region' }); } catch (e) {}
+    function countryName(code) { try { return (regionNames && regionNames.of(code)) || code; } catch (e) { return code; } }
+    function normSearch(s) { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+    function getCountryCodes() { return [...selectedCountries]; }
+
+    function buildCountryList() {
+        const list = document.getElementById('cc-list');
+        const rows = COUNTRY_CODES.map(code => ({ code, name: countryName(code) }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+        list.innerHTML = rows.map(r => `
+            <label class="cc-row${selectedCountries.has(r.code) ? ' sel' : ''}" data-code="${r.code}" data-name="${escHtml(normSearch(r.name) + ' ' + r.code.toLowerCase())}">
+                <input type="checkbox" ${selectedCountries.has(r.code) ? 'checked' : ''} onchange="onCountryToggle('${r.code}', this.checked)">
+                <span>${escHtml(r.name)}</span><em>${r.code}</em>
+            </label>`).join('');
+        updateCountryLabel();
+    }
+
+    function updateCountryLabel() {
+        const codes = getCountryCodes();
+        const el = document.getElementById('cc-label');
+        if (!el) return;
+        if (!codes.length) el.textContent = 'Aucun pays surligné';
+        else if (codes.length <= 2) el.textContent = codes.map(countryName).join(', ');
+        else el.textContent = codes.length + ' pays surlignés';
+    }
+
+    // Applique la sélection à la carte : met à jour le filtre du calque existant (pas de rechargement
+    // de la source à chaque case cochée), le crée s'il n'existe pas encore, le retire si plus rien n'est coché.
+    function applyCountryHighlight() {
+        const codes = getCountryCodes();
+        if (!codes.length) { removeBordersLayer(); return; }
+        if (map.getLayer('custom-borders')) map.setFilter('custom-borders', ['in', 'iso_3166_1', ...codes]);
+        else drawBorders();
+    }
+
+    function onCountryToggle(code, checked) {
+        if (checked) selectedCountries.add(code); else selectedCountries.delete(code);
+        const row = document.querySelector('#cc-list .cc-row[data-code="' + code + '"]');
+        if (row) row.classList.toggle('sel', checked);
+        updateCountryLabel();
+        applyCountryHighlight();
+    }
+
+    // Remplace toute la sélection (chargement de projet, "Effacer") sans toucher à la carte
+    function setCountrySelection(codes) {
+        selectedCountries.clear();
+        codes.forEach(c => selectedCountries.add(c));
+        document.querySelectorAll('#cc-list .cc-row').forEach(row => {
+            const on = selectedCountries.has(row.dataset.code);
+            row.classList.toggle('sel', on);
+            row.querySelector('input').checked = on;
+        });
+        updateCountryLabel();
+    }
+
+    function updateSpeedLabel() {
+        document.getElementById('speed-val').textContent = parseFloat(document.getElementById('speed-range').value).toFixed(1) + '\u00d7';
+    }
+
+    function toggleCountryList() {
+        const picker = document.getElementById('country-picker');
+        const open = picker.classList.toggle('open');
+        document.getElementById('cc-fold').classList.toggle('collapsed', !open);
+        if (open) setTimeout(() => document.getElementById('cc-search').focus(), 200);
+    }
+
+    function filterCountryList() {
+        const q = normSearch(document.getElementById('cc-search').value.trim());
+        let shown = 0;
+        document.querySelectorAll('#cc-list .cc-row').forEach(row => {
+            const hit = !q || row.dataset.name.includes(q);
+            row.style.display = hit ? '' : 'none';
+            if (hit) shown++;
+        });
+        document.getElementById('cc-empty').style.display = shown ? 'none' : '';
+    }
+
+    // Entrée : coche/décoche le premier résultat visible ; Échap : vide la recherche
+    function onCountrySearchKey(e) {
+        if (e.key === 'Escape') { e.target.value = ''; filterCountryList(); }
+        else if (e.key === 'Enter' && !e.isComposing) {
+            e.preventDefault();
+            const first = [...document.querySelectorAll('#cc-list .cc-row')].find(r => r.style.display !== 'none');
+            if (first) { const cb = first.querySelector('input'); cb.checked = !cb.checked; onCountryToggle(first.dataset.code, cb.checked); }
+        }
+    }
 
     // --- KEYFRAMES ---
     function addKeyframe() {
@@ -1475,9 +1842,9 @@
                 <div class="list-item">
                     <input type="text" value="${k.label}" oninput="keyframes[${i}].label = this.value">
                     <div class="action-btns">
-                        <button class="mini-btn" onclick="moveKey(${i}, -1)">&#8593;</button>
-                        <button class="mini-btn" onclick="moveKey(${i}, 1)">&#8595;</button>
-                        <button class="mini-btn del-btn" onclick="keyframes.splice(${i},1);updateKeys()">&#10006;</button>
+                        <button class="mini-btn" onclick="moveKey(${i}, -1)">${ico('up')}</button>
+                        <button class="mini-btn" onclick="moveKey(${i}, 1)">${ico('down')}</button>
+                        <button class="mini-btn del-btn" onclick="keyframes.splice(${i},1);updateKeys()">${ico('x')}</button>
                     </div>
                 </div>`;
         });
@@ -1563,7 +1930,7 @@
         const data = {
             style: currentStyle,
             borders: {
-                codes: document.getElementById('country-iso').value,
+                codes: getCountryCodes().join(','),
                 color: document.getElementById('border-color').value,
                 opacity: document.getElementById('border-opacity').value,
                 width: borderWidth,
@@ -1604,7 +1971,7 @@
             const data = JSON.parse(e.target.result);
             switchStyle(data.style);
 
-            document.getElementById('country-iso').value = data.borders.codes;
+            setCountrySelection(String(data.borders.codes || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean));
             document.getElementById('border-color').value = data.borders.color || '#ff0000';
             document.getElementById('border-opacity').value = data.borders.opacity || '1';
             borderWidth = data.borders.width || 4;
@@ -1674,6 +2041,7 @@
             updateArrowUI();
             renderArrows();
 
+            enhanceControls(); // curseurs/pastilles dont la valeur vient d'être restaurée
             setTimeout(() => drawBorders(), 1000);
         };
         reader.readAsText(file);
@@ -1702,6 +2070,7 @@
             curved: false, color: currentAccent(), opacity: 0.9, width: 3,
             echo: false, mover: false, moverSpeed: 1, shorten: 0, keyframe: null, drawn: true
         });
+        expandedFiches.add(arrows[arrows.length - 1].id); // une flèche qu'on vient de créer s'ouvre pour être configurée
         updateArrowUI();
         renderArrows();
     }
@@ -1717,11 +2086,21 @@
         const a = getArrow(id); if (!a) return;
         a[field] = value;
         if (field === 'from' || field === 'to') rebuildArrowGroup(a);
+        if (field === 'mover') { const r = document.getElementById('spd_' + id); if (r) r.style.display = value ? '' : 'none'; }
         renderArrows();
     }
 
     // Coche/décoche un point comme extrémité (A ou B) d'une flèche — mise à jour ciblée
     // (ne reconstruit pas toute la liste, pour ne pas perdre le texte de recherche tapé)
+    // Résumé "Départ → Arrivée" affiché dans l'en-tête de la fiche (lisible même repliée)
+    function arrowSummary(a) {
+        const names = ids => {
+            const l = ids.map(id => (markerById(id) || {}).label).filter(Boolean);
+            return l.length > 2 ? l.length + ' repères' : (l.join(', ') || '—');
+        };
+        return names(a.from) + ' → ' + names(a.to);
+    }
+
     function toggleArrowEndpoint(arrowId, field, markerId, rowEl) {
         const a = getArrow(arrowId); if (!a) return;
         const arr = a[field];
@@ -1730,6 +2109,8 @@
         if (rowEl) rowEl.classList.toggle('sel', arr.includes(markerId));
         const countEl = document.getElementById('cnt_' + field + '_' + arrowId);
         if (countEl) countEl.textContent = arr.length;
+        const sumEl = document.getElementById('sum_' + arrowId);
+        if (sumEl) sumEl.textContent = arrowSummary(a);
         rebuildArrowGroup(a);
         renderArrows();
     }
@@ -1762,13 +2143,16 @@
         `).join('');
 
         wrap.innerHTML = arrows.map((a, i) => `
-            <div class="arrow-fiche" data-id="${a.id}">
-                <div class="af-head">
+            <div class="arrow-fiche${expandedFiches.has(a.id) ? ' open' : ''}" data-id="${a.id}">
+                <div class="af-head" onclick="ficheHeadClick(event, this.parentElement, '${a.id}')">
+                    <span class="fold-chev">${ico('chevron')}</span>
                     <span class="af-title">FL&Egrave;CHE ${i + 1}</span>
+                    <span class="af-sum" id="sum_${a.id}">${escHtml(arrowSummary(a))}</span>
                     <input type="color" value="${a.color}" title="Couleur" oninput="setArrowField('${a.id}','color',this.value)">
-                    <button class="mini-btn" title="Aperçu" onclick="playArrow('${a.id}')">&#9654;</button>
-                    <button class="mini-btn del-btn" title="Supprimer" onclick="removeArrow('${a.id}')">&#10006;</button>
+                    <button class="mini-btn" title="Aperçu" onclick="playArrow('${a.id}')">${ico('play')}</button>
+                    <button class="mini-btn del-btn" title="Supprimer" onclick="removeArrow('${a.id}')">${ico('x')}</button>
                 </div>
+                <div class="fold ${expandedFiches.has(a.id) ? '' : 'collapsed'}"><div class="fold-inner"><div class="af-body">
                 <div class="af-cols">
                     <div class="af-col">
                         <label class="af-lbl">D&eacute;part (A) &middot; <span id="cnt_from_${a.id}">${a.from.length}</span></label>
@@ -1786,24 +2170,27 @@
                     <label><input type="checkbox" ${a.echo ? 'checked' : ''} onchange="setArrowField('${a.id}','echo',this.checked)"> &Eacute;cho</label>
                     <label><input type="checkbox" ${a.mover ? 'checked' : ''} onchange="setArrowField('${a.id}','mover',this.checked)"> Point mobile</label>
                 </div>
-                <div class="af-row">
+                <div class="af-row af-field" id="spd_${a.id}" style="${a.mover ? '' : 'display:none'}">
                     <span>Vitesse pt.</span>
                     <input type="range" min="0.2" max="4" step="0.1" value="${a.moverSpeed || 1}" oninput="setArrowField('${a.id}','moverSpeed',parseFloat(this.value))">
                 </div>
-                <div class="af-row">
+                <div class="af-row af-field">
                     <span>Raccourcir</span>
                     <input type="range" min="0" max="80" step="2" value="${a.shorten || 0}" oninput="setArrowField('${a.id}','shorten',parseFloat(this.value))" title="Écarte les deux bouts de la flèche des centres des points (en pixels)">
                 </div>
-                <div class="af-row">
-                    <span>&Eacute;paiss.</span>
+                <div class="af-row af-field">
+                    <span>&Eacute;paisseur</span>
                     <input type="range" min="1" max="10" step="0.5" value="${a.width}" oninput="setArrowField('${a.id}','width',parseFloat(this.value))">
-                    <span>Opac.</span>
+                </div>
+                <div class="af-row af-field">
+                    <span>Opacit&eacute;</span>
                     <input type="range" min="0.1" max="1" step="0.05" value="${a.opacity}" oninput="setArrowField('${a.id}','opacity',parseFloat(this.value))">
                 </div>
-                <div class="af-row">
+                <div class="af-row af-field">
                     <span>Keyframe</span>
                     <select onchange="setArrowField('${a.id}','keyframe', this.value===''?null:parseInt(this.value,10))">${kfOpts}</select>
                 </div>
+                </div></div></div>
             </div>
         `).join('');
 
@@ -2026,6 +2413,9 @@
     map.on('render', renderArrows);
     map.on('resize', renderArrows);
 
+    buildCountryList();
+    enhanceControls();
+    updateSpeedLabel();
     updateGroupUI();
     updateArrowUI();
 </script>
