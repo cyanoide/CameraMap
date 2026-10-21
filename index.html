@@ -333,14 +333,22 @@
            affiché — voir refreshMarkerVisibility(). */
         .marker-content-wrapper { position: absolute; bottom: 0; left: 0; width: 0; height: 0; will-change: transform; transition: transform 0.1s linear; pointer-events: none; }
 
-        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, bottom .25s ease, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 20; pointer-events: auto; }
-        .marker-image:hover { transform: translateX(-50%) scale(1.15); z-index: 9999 !important; }
+        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, bottom .25s ease, width .18s ease, height .18s ease, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 20; pointer-events: none; }
+        /* Les logos ne captent plus la souris (sinon un logo affiché par-dessus d'autres points les rendait
+           impossibles à survoler) : le léger agrandissement se déclenche depuis la zone de survol du point. */
+        .marker-image.lift { transform: translateX(-50%) scale(1.15); }
 
         .marker-label { font-size: 15px; font-weight: 900; color: black; text-align: center; white-space: nowrap; text-shadow: 2px 0 0 white, -2px 0 0 white, 0 2px 0 white, 0 -2px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 30; pointer-events: auto; cursor: pointer; transition: opacity 0.3s, bottom .25s ease; font-family: var(--font-main); }
 
         .hidden { opacity: 0 !important; visibility: hidden; }
         /* Aperçu au survol du point (activable via le toggle SURVOL) */
-        .marker-image.hidden.hover-peek { opacity: .92 !important; visibility: visible !important; }
+        /* pointer-events:none pendant l'aperçu : sinon le logo qui apparaît sous le curseur vole le survol de
+           la zone du point -> mouseleave -> le logo disparaît -> mouseenter -> il réapparaît... = les flashs */
+        /* Logo masqué par le mode adaptatif (pas la place) : vrai fondu (la visibilité ne bascule qu'après le fondu) */
+        .marker-image.fade-out { opacity: 0; visibility: hidden;
+            transition: opacity .35s ease, visibility 0s linear .35s, bottom .25s ease, width .18s ease, height .18s ease, transform .2s ease; }
+        .marker-image.fade-out.hover-peek { opacity: .92; visibility: visible; transition: opacity .2s ease, bottom .25s ease, width .18s ease, height .18s ease; }
+        .marker-image.hidden.hover-peek { opacity: .92 !important; visibility: visible !important; pointer-events: none; }
         .display-none { display: none !important; }
 
         /* --- LISTE ITEMS --- */
@@ -634,6 +642,7 @@
     <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11"/><circle cx="5.5" cy="6.2" r="1.2"/><path d="M1.5 12l4-4 3 3 2-2 3.5 3.5"/></symbol>
     <symbol id="i-pin" viewBox="0 0 16 16"><path d="M8 14.5s4.5-4.3 4.5-8A4.5 4.5 0 0 0 3.5 6.5c0 3.7 4.5 8 4.5 8z"/><circle cx="8" cy="6.5" r="1.6"/></symbol>
     <symbol id="i-text" viewBox="0 0 16 16"><path d="M3 4.5v-1.5h10v1.5M8 3v10M5.5 13h5"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 16 16"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></symbol>
     <symbol id="i-x" viewBox="0 0 16 16"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6"/></symbol>
     <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3.5M4 7l4-3.5L12 7"/></symbol>
@@ -773,6 +782,25 @@
                 <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg> Tout</button>
                 <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Tout</button>
             </div>
+            <div class="btn-grid" style="margin-bottom:6px;" title="Adaptatif : tailles réduites pour ne pas se chevaucher, logos masqués si pas la place. Rétro : comme avant (tailles fixes, logos repoussés).">
+                <button id="lm-adaptive" class="active" onclick="setLogoMode('adaptive')">Adaptatif</button>
+                <button id="lm-retro" onclick="setLogoMode('retro')">R&eacute;tro</button>
+            </div>
+            <div class="color-row" id="logo-min-row" style="margin-bottom:6px;">
+                <span>Taille mini</span>
+                <input type="range" id="logo-minsize" min="16" max="120" step="2" value="50"
+                       oninput="updateLogoMinSize(this.value)" title="Taille minimale d'un logo à son apparition (côté le plus long du logo visible, marges transparentes exclues) ; il grossit ensuite avec le zoom jusqu'à sa taille réglée">
+            </div>
+            <div class="color-row" id="logo-zoomstart-row" style="margin-bottom:6px;">
+                <span>Zoom apparition</span>
+                <input type="range" id="logo-zoomstart" min="3" max="14" step="0.5" value="7.5"
+                       oninput="updateLogoZoomStart(this.value)" title="Niveau de zoom à partir duquel les logos apparaissent (tous ensemble, en fondu) ; en dessous, tout reste en points">
+            </div>
+            <div class="color-row" id="logo-zoom-row" style="margin-bottom:6px;">
+                <span>Zoom taille max</span>
+                <input type="range" id="logo-zoomfull" min="4" max="16" step="0.5" value="11.5"
+                       oninput="updateLogoZoomFull(this.value)" title="Niveau de zoom auquel les logos atteignent leur taille maximale (celle réglée sur chaque repère) ; ils grossissent progressivement avant, et ne grossissent plus après">
+            </div>
             <div class="color-row" style="margin-bottom:10px;">
                 <span>Proximité logo</span>
                 <input type="range" id="logo-proximity" min="0" max="0.6" step="0.02" value="0.22"
@@ -792,6 +820,9 @@
         <div id="arrows-body" class="collapsible-body"><div class="cb-inner">
             <div class="btn-grid" style="margin-bottom:10px;">
                 <button onclick="addArrow()" style="border-style:dashed;">+ Nouvelle Flèche</button>
+            </div>
+            <div class="btn-grid" style="margin-bottom:8px;">
+                <button id="arrow-big-btn" class="active" onclick="toggleArrowBig()" title="Les logos reliés par une flèche s'affichent en grand (taille max), même dézoomés">Logos reli&eacute;s : en grand</button>
             </div>
             <div id="arrows-list"></div>
         </div></div>
@@ -863,7 +894,16 @@
     // --- GROUPES DE LOGOS ---
     function getGroup(id) { return groups.find(g => g.id === id); }
     function groupIsVisible(m) { const g = getGroup(m.groupId); return g ? g.visible : true; }
-    function isMarkerActive(m) { return (m.logoVisible || m.textVisible) && groupIsVisible(m); }
+    // "Grand" : un logo forcé à sa taille maximale, même dézoomé / dans un amas — soit explicitement (bouton sur le
+    // repère), soit parce qu'il est relié par une flèche (option "Logos reliés en grand").
+    let arrowBig = true;
+    try { arrowBig = localStorage.getItem('cm-arrow-big') !== 'off'; } catch (e) {}
+    let arrowEnds = new Set();
+    function refreshArrowEnds() { arrowEnds = new Set(); arrows.forEach(a => { a.from.forEach(id => arrowEnds.add(id)); a.to.forEach(id => arrowEnds.add(id)); }); }
+    function isBig(m) { return !!m.big || (arrowBig && arrowEnds.has(m.id)); }
+    function wantLogo(m) { return m.logoVisible || isBig(m); }
+    function onArrowsChanged() { refreshArrowEnds(); markers.forEach(refreshMarkerVisibility); scheduleLayout(); }
+    function isMarkerActive(m) { return ((wantLogo(m) && !m.dc) || m.textVisible) && groupIsVisible(m); }
     const UNGROUPED_DOT_COLOR = '#5f5f5f'; // gris un peu foncé pour les repères sans groupe
     function groupDotColor(groupId) { const g = getGroup(groupId); return g ? g.color : UNGROUPED_DOT_COLOR; }
 
@@ -872,8 +912,11 @@
         const imgEl = el.querySelector('.marker-image');
         const txtEl = el.querySelector('.marker-label');
         const gv = groupIsVisible(m);
-        const logoShown = m.logoVisible && gv;
+        const logoShown = wantLogo(m) && gv;
+        // m.dc = masqué par le mode adaptatif faute de place : fondu (.fade-out) plutôt que masquage sec (.hidden)
+        const logoOn = logoShown && !m.dc;
         imgEl.classList.toggle('hidden', !logoShown);
+        imgEl.classList.toggle('fade-out', logoShown && !!m.dc);
         txtEl.classList.toggle('hidden', !(m.textVisible && gv));
 
         // Le logo est prioritaire pour être au plus près du point ; s'il n'est pas affiché,
@@ -882,12 +925,12 @@
         // logo qui touche juste le point du bout de son bord semble quand même loin, vu sa taille).
         // On compense aussi la marge transparente détectée dans l'image (cf. analyzeLogoBounds) :
         // un logo fin dans un carré très transparent ne doit pas sembler loin juste à cause du carré.
-        const size = m.size || DEFAULT_LOGO_SIZE;
+        const size = m.effSize || m.size || DEFAULT_LOGO_SIZE;
         const padTop = size * (m.visTopFrac || 0);
         const padBottom = size * (1 - (m.visBottomFrac != null ? m.visBottomFrac : 1));
         const imgBottom = -size * logoProximity - padBottom;
         imgEl.style.bottom = imgBottom + 'px';
-        txtEl.style.bottom = logoShown ? (imgBottom + size - padTop + 6) + 'px' : '0px';
+        txtEl.style.bottom = logoOn ? (imgBottom + size - padTop + 6) + 'px' : '0px';
 
         // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
         const backEl = m.markerBack.getElement();
@@ -939,6 +982,7 @@
         g.visible = !g.visible;
         markers.forEach(m => { if (m.groupId === id) refreshMarkerVisibility(m); });
         updateGroupUI();
+        scheduleLayout();
     }
 
     function assignMarkerGroup(index, groupId) {
@@ -1179,17 +1223,18 @@
 
                         let m1 = markers[i]; let m2 = markers[j];
                         // Rayon de collision proportionnel à la taille des logos
-                        const RADIUS = ((m1.size || DEFAULT_LOGO_SIZE) + (m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
+                        const RADIUS = ((m1.effSize || m1.size || DEFAULT_LOGO_SIZE) + (m2.effSize || m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
                         let dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
                         let dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
                         let dist = Math.sqrt(dx*dx + dy*dy);
                         if (dist < RADIUS && dist > 0) {
                             let overlap = RADIUS - dist;
                             let angle = Math.atan2(dy, dx);
-                            let moveX = Math.cos(angle) * overlap * 0.5 / COLLISION_ITERATIONS;
-                            let moveY = Math.sin(angle) * overlap * 0.5 / COLLISION_ITERATIONS;
-                            m1.forceX -= moveX; m1.forceY -= moveY;
-                            m2.forceX += moveX; m2.forceY += moveY;
+                            // Un logo "Grand" est lourd : ce sont les autres qui s'écartent
+                            const w1 = isBig(m1) ? 0.15 : 1, w2 = isBig(m2) ? 0.15 : 1, tw = w1 + w2;
+                            const k = overlap / COLLISION_ITERATIONS;
+                            m1.forceX -= Math.cos(angle) * k * (w1 / tw); m1.forceY -= Math.sin(angle) * k * (w1 / tw);
+                            m2.forceX += Math.cos(angle) * k * (w2 / tw); m2.forceY += Math.sin(angle) * k * (w2 / tw);
                         }
                     }
                 }
@@ -1223,6 +1268,7 @@
                     });
                 });
             }
+
 
             markers.forEach(m => {
                 const contentWrapper = m.markerFront.getElement().querySelector('.marker-content-wrapper');
@@ -1290,12 +1336,16 @@
             img: imgUrl,
             label: labelText,
             size: logoSize,
+            effSize: logoSize, // taille réellement affichée (= size en mode Rétro, ≤ size en mode Adaptatif)
+            dc: false,
             groupId: gid,
             logoVisible: true,
             textVisible: true,
             pointVisible: true,
-            visTopFrac: 0,    // marge transparente au-dessus du contenu visible (0-1, détectée async)
-            visBottomFrac: 1  // ... et en dessous — cf. analyzeLogoBounds()
+            visTopFrac: 0,    // zone visible du logo dans sa boîte carrée, en fractions 0-1 (marges transparentes
+            visBottomFrac: 1, // et letterbox compris, détectée async) — cf. analyzeLogoBounds()
+            visLeftFrac: 0,
+            visRightFrac: 1
         };
 
         // Survol : aperçu temporaire du logo s'il est masqué (uniquement si le toggle SURVOL est actif).
@@ -1307,13 +1357,14 @@
         const labelEl = elFront.querySelector('.marker-label');
         const imgEl = elFront.querySelector('.marker-image');
         const onHoverEnter = () => {
-            if (!hoverReveal) return;
             clearTimeout(hoverLeaveTimer);
-            const wasHidden = imgEl.classList.contains('hidden');
+            imgEl.classList.add('lift');
+            if (!hoverReveal) return;
+            const wasHidden = imgEl.classList.contains('hidden') || imgEl.classList.contains('fade-out');
             imgEl.classList.add('hover-peek');
             // Le logo était masqué : on lui fait de la place, le texte recule temporairement
             if (wasHidden) {
-                const size = markerObj.size || DEFAULT_LOGO_SIZE;
+                const size = markerObj.effSize || markerObj.size || DEFAULT_LOGO_SIZE;
                 const padTop = size * (markerObj.visTopFrac || 0);
                 const padBottom = size * (1 - (markerObj.visBottomFrac != null ? markerObj.visBottomFrac : 1));
                 labelEl.style.bottom = (-size * logoProximity - padBottom + size - padTop + 6) + 'px';
@@ -1322,7 +1373,7 @@
         const onHoverLeave = () => {
             clearTimeout(hoverLeaveTimer);
             hoverLeaveTimer = setTimeout(() => {
-                imgEl.classList.remove('hover-peek');
+                imgEl.classList.remove('hover-peek', 'lift');
                 refreshMarkerVisibility(markerObj); // remet le texte à sa vraie position de repos
             }, 180);
         };
@@ -1336,7 +1387,9 @@
         updateMarkerUI();
 
         // Détecte la vraie zone visible (non transparente) de l'image, puis repositionne une fois connue
-        analyzeLogoBounds(imgUrl, (topFrac, bottomFrac) => {
+        analyzeLogoBounds(imgUrl, (leftFrac, topFrac, rightFrac, bottomFrac) => {
+            markerObj.visLeftFrac = leftFrac;
+            markerObj.visRightFrac = rightFrac;
             markerObj.visTopFrac = topFrac;
             markerObj.visBottomFrac = bottomFrac;
             refreshMarkerVisibility(markerObj);
@@ -1348,33 +1401,40 @@
     // (un logo fin dans un carré très transparent ne doit pas sembler loin juste à cause du carré).
     // Best effort : en cas d'échec (image cross-origin illisible, etc.), on suppose 0-1 (pas de marge).
     function analyzeLogoBounds(imgUrl, callback) {
+        const FULL = [0, 0, 1, 1];
         const img = new Image();
         img.onload = () => {
             try {
                 const w = img.naturalWidth, h = img.naturalHeight;
-                if (!w || !h) { callback(0, 1); return; }
+                if (!w || !h) { callback(...FULL); return; }
                 const canvas = document.createElement('canvas');
                 canvas.width = w; canvas.height = h;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0);
                 const data = ctx.getImageData(0, 0, w, h).data;
                 const ALPHA_THRESHOLD = 12;
-                let top = -1, bottom = -1;
+                let x0 = w, x1 = -1, y0 = h, y1 = -1;
                 for (let y = 0; y < h; y++) {
                     const rowStart = y * w * 4;
-                    let rowHasContent = false;
                     for (let x = 0; x < w; x++) {
-                        if (data[rowStart + x * 4 + 3] > ALPHA_THRESHOLD) { rowHasContent = true; break; }
+                        if (data[rowStart + x * 4 + 3] > ALPHA_THRESHOLD) {
+                            if (x < x0) x0 = x; if (x > x1) x1 = x;
+                            if (y < y0) y0 = y; y1 = y;
+                        }
                     }
-                    if (rowHasContent) { if (top < 0) top = y; bottom = y; }
                 }
-                if (top < 0) { callback(0, 1); return; } // image entièrement transparente
-                callback(top / h, (bottom + 1) / h);
+                if (x1 < 0) { callback(...FULL); return; } // image entièrement transparente
+                // L'image est affichée en `contain` dans une boîte carrée : une image non carrée est
+                // "letterboxée" (marges vides en haut/bas ou à gauche/droite). On convertit donc la zone
+                // visible en fractions de la BOÎTE (0-1), marges transparentes ET letterbox compris.
+                const sc = Math.min(1 / w, 1 / h);
+                const dw = w * sc, dh = h * sc, ox = (1 - dw) / 2, oy = (1 - dh) / 2;
+                callback(ox + (x0 / w) * dw, oy + (y0 / h) * dh, ox + ((x1 + 1) / w) * dw, oy + ((y1 + 1) / h) * dh);
             } catch (e) {
-                callback(0, 1);
+                callback(...FULL);
             }
         };
-        img.onerror = () => callback(0, 1);
+        img.onerror = () => callback(...FULL);
         img.src = imgUrl;
     }
 
@@ -1477,6 +1537,8 @@
                         <span>Ordre</span>
                         <button class="mini-btn" onclick="moveMarker(${i}, -1)" title="Monter (Arrière)">${ico('up')}</button>
                         <button class="mini-btn" onclick="moveMarker(${i}, 1)" title="Descendre (Avant)">${ico('down')}</button>
+                        <span style="margin-left:10px;">Grand</span>
+                        <button class="mini-btn ${m.big ? 'toggle-btn' : 'toggle-btn inactive'}" onclick="toggleBig(${i})" title="Toujours afficher ce logo en grand (taille max), même dézoomé ou dans un amas">${ico('expand')}</button>
                         <span class="mi-sp"></span>
                         <button class="mini-btn del-btn" onclick="removeMarker(${i})" title="Supprimer ce repère">${ico('x')}</button>
                     </div>
@@ -1487,6 +1549,7 @@
         const st = document.getElementById('footer-status');
         if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
         filterMarkerList();
+        scheduleLayout();
         updateGroupCounts();
         updateArrowUI();
         renderArrows();
@@ -1538,10 +1601,10 @@
     function updateMarkerSize(index, val, sliderEl) {
         const size = parseInt(val, 10);
         markers[index].size = size;
-        const imgEl = markers[index].markerFront.getElement().querySelector('.marker-image');
-        imgEl.style.width = size + 'px';
-        imgEl.style.height = size + 'px';
-        refreshMarkerVisibility(markers[index]); // le texte peut devoir reculer/avancer avec la nouvelle taille
+        markers[index].effSize = size;
+        applyRenderSize(markers[index]);
+        refreshMarkerVisibility(markers[index]);
+        scheduleLayout(); // le texte peut devoir reculer/avancer avec la nouvelle taille
         // Mise à jour de l'étiquette de valeur sans re-render complet (via le curseur lui-même :
         // la liste est triée par groupe/nom, donc l'index du marqueur ≠ la position de sa fiche)
         const v = sliderEl && sliderEl.parentElement.querySelector('.size-val');
@@ -1582,6 +1645,17 @@
         updateMarkerUI();
     }
 
+    function toggleBig(index) {
+        markers[index].big = !markers[index].big;
+        refreshMarkerVisibility(markers[index]);
+        updateMarkerUI();
+    }
+    function toggleArrowBig() {
+        arrowBig = !arrowBig;
+        try { localStorage.setItem('cm-arrow-big', arrowBig ? 'on' : 'off'); } catch (e) {}
+        const b = document.getElementById('arrow-big-btn'); if (b) b.classList.toggle('active', arrowBig);
+        onArrowsChanged();
+    }
     function togglePoint(index) {
         markers[index].pointVisible = (markers[index].pointVisible === false);
         refreshMarkerVisibility(markers[index]);
@@ -1600,6 +1674,119 @@
         markers.forEach(m => { m.pointVisible = !anyOn; refreshMarkerVisibility(m); });
         updateMarkerUI();
     }
+    // --- MODE D'AFFICHAGE DES LOGOS ------------------------------------------------------------
+    // "adaptatif" (défaut) : aucun logo n'est prioritaire et ils apparaissent TOUS ensemble. Sous le zoom
+    //   « Zoom d'apparition » tout est en points (quelques logos isolés au milieu d'une majorité de points ne
+    //   servaient à rien) ; au-dessus, chaque logo s'affiche en fondu à au moins la taille mini et grossit avec le
+    //   zoom jusqu'à sa taille réglée (= taille maxi, jamais au-delà). Dans les amas trop serrés, la taille est
+    //   réduite (jamais sous la mini) et la répulsion physique écarte les logos, reliés à leur point par un trait.
+    //   Exception "Grand" (bouton sur un repère, ou logo relié par une flèche si l'option est active) : taille maxi
+    //   en permanence, même dézoomé ; ces logos sont « lourds » (ce sont les autres qui s'écartent).
+    // "rétro" : comportement d'avant (tailles réglées + répulsion physique des logos qui se chevauchent).
+    let logoMode = 'adaptive';
+    let logoMinSize = 50; // côté le plus long du contenu visible du logo (px)
+    let logoZoomStart = 7.5; // zoom d'apparition : en dessous, tout reste en points (c'est ce que l'utilisateur veut à l'échelle d'une grande région)
+    let logoZoomFull = 11.5; // zoom auquel les logos atteignent leur taille maxi (ils grossissent entre les deux)
+    try {
+        logoMode = localStorage.getItem('cm-logo-mode') === 'retro' ? 'retro' : 'adaptive';
+        const mn = parseInt(localStorage.getItem('cm-logo-min'), 10);
+        if (mn >= 12 && mn <= 120) logoMinSize = mn;
+        const zf = parseFloat(localStorage.getItem('cm-logo-zoomfull'));
+        if (zf >= 4 && zf <= 16) logoZoomFull = zf;
+        const zs = parseFloat(localStorage.getItem('cm-logo-zoomstart'));
+        if (zs >= 3 && zs <= 16) logoZoomStart = zs;
+    } catch (e) {}
+
+    let layoutQueued = false;
+    function scheduleLayout() {
+        if (layoutQueued) return;
+        layoutQueued = true;
+        requestAnimationFrame(layoutLogos);
+    }
+    function applyRenderSize(m) {
+        const imgEl = m.markerFront.getElement().querySelector('.marker-image');
+        const s = (m.effSize || m.size || DEFAULT_LOGO_SIZE) + 'px';
+        if (imgEl.style.width !== s) { imgEl.style.width = s; imgEl.style.height = s; }
+    }
+    function layoutLogos() {
+        layoutQueued = false;
+        const changed = [];
+        const setState = (m, size, dc) => {
+            if (m.effSize !== size || !!m.dc !== dc) { m.effSize = size; m.dc = dc; applyRenderSize(m); changed.push(m); }
+        };
+        if (logoMode !== 'adaptive') {
+            markers.forEach(m => setState(m, m.size || DEFAULT_LOGO_SIZE, false));
+            changed.forEach(refreshMarkerVisibility);
+            return;
+        }
+        const cont = map.getContainer(), W = cont.clientWidth, H = cont.clientHeight, MARG = 160;
+        const act = [];
+        markers.forEach((m, idx) => {
+            const full = m.size || DEFAULT_LOGO_SIZE;
+            if (!(wantLogo(m) && groupIsVisible(m))) { setState(m, full, false); return; }
+            const p = map.project(m.lngLat);
+            if (p.x < -MARG || p.x > W + MARG || p.y < -MARG || p.y > H + MARG) { setState(m, isBig(m) ? full : Math.min(logoMinSize, full), false); return; } // hors écran : rien à calculer
+            // côté le plus long du contenu réellement visible, en fraction de la boîte (≥ .15 pour éviter les cas dégénérés)
+            const vl = Math.max(0.15, (m.visRightFrac != null ? m.visRightFrac : 1) - (m.visLeftFrac || 0), (m.visBottomFrac != null ? m.visBottomFrac : 1) - (m.visTopFrac || 0));
+            act.push({ m, idx, x: p.x, y: p.y, max: full, vl, big: isBig(m) });
+        });
+        const GAP = 4, MIN = logoMinSize;
+        const grow = logoZoomFull > logoZoomStart ? Math.max(0, Math.min(1, (map.getZoom() - logoZoomStart) / (logoZoomFull - logoZoomStart))) : 1; // 0 = taille mini … 1 = taille maxi
+        // Distance libre autour de chaque point = distance au voisin le plus proche (règle symétrique, sans priorité)
+        act.forEach(a => { a.nl = Infinity; });
+        for (let i = 0; i < act.length; i++) {
+            for (let j = i + 1; j < act.length; j++) {
+                const lim = Math.hypot(act[i].x - act[j].x, act[i].y - act[j].y) - GAP;
+                if (lim < act[i].nl) act[i].nl = lim;
+                if (lim < act[j].nl) act[j].nl = lim;
+            }
+        }
+        // Tous les logos apparaissent (en fondu) ensemble à partir du zoom d'apparition, jamais seulement quelques-uns :
+        // sous ce zoom tout est en points. Au-dessus, chacun s'affiche au moins à la taille mini — dans les amas
+        // serrés ils sont écartés par la répulsion (startPhysics) avec un trait vers leur point.
+        const visible = map.getZoom() >= logoZoomStart;
+        act.forEach(a => {
+            if (a.big) { setState(a.m, a.max, false); return; } // "Grand" : taille maxi, toujours affiché
+            const lo = Math.min(MIN / a.vl, a.max);            // taille mini : c'est le CONTENU visible qui doit faire au moins MIN px (un fin logo dans un grand carré transparent ne reste pas minuscule), sans dépasser sa taille maxi
+            if (!visible) { setState(a.m, lo, true); return; } // trop dézoomé : fondu sortant pour tous
+            const target = lo + (a.max - lo) * grow;           // taille voulue à ce niveau de zoom (mini → maxi)
+            setState(a.m, Math.max(lo, Math.round(Math.min(target, a.nl / a.vl))), false); // réduite si le voisinage est serré, jamais sous la mini
+        });
+        changed.forEach(refreshMarkerVisibility);
+    }
+    function setLogoMode(mode) {
+        logoMode = mode === 'retro' ? 'retro' : 'adaptive';
+        try { localStorage.setItem('cm-logo-mode', logoMode); } catch (e) {}
+        syncLogoModeUI();
+        scheduleLayout();
+    }
+    function updateLogoZoomStart(val) {
+        logoZoomStart = parseFloat(val);
+        try { localStorage.setItem('cm-logo-zoomstart', String(logoZoomStart)); } catch (e) {}
+        scheduleLayout();
+    }
+    function updateLogoZoomFull(val) {
+        logoZoomFull = parseFloat(val);
+        try { localStorage.setItem('cm-logo-zoomfull', String(logoZoomFull)); } catch (e) {}
+        scheduleLayout();
+    }
+    function updateLogoMinSize(val) {
+        logoMinSize = parseInt(val, 10);
+        try { localStorage.setItem('cm-logo-min', String(logoMinSize)); } catch (e) {}
+        scheduleLayout();
+    }
+    function syncLogoModeUI() {
+        const a = document.getElementById('lm-adaptive'), r = document.getElementById('lm-retro'), row = document.getElementById('logo-min-row');
+        if (a) a.classList.toggle('active', logoMode === 'adaptive');
+        if (r) r.classList.toggle('active', logoMode === 'retro');
+        if (row) row.style.display = logoMode === 'adaptive' ? '' : 'none';
+        const zr = document.getElementById('logo-zoom-row'); if (zr) zr.style.display = logoMode === 'adaptive' ? '' : 'none';
+        const s = document.getElementById('logo-minsize'); if (s) { s.value = logoMinSize; if (typeof syncRange === 'function') syncRange(s); }
+        const z = document.getElementById('logo-zoomfull'); if (z) { z.value = logoZoomFull; if (typeof syncRange === 'function') syncRange(z); }
+        const zs = document.getElementById('logo-zoomstart'); if (zs) { zs.value = logoZoomStart; if (typeof syncRange === 'function') syncRange(zs); }
+        const zsr = document.getElementById('logo-zoomstart-row'); if (zsr) zsr.style.display = logoMode === 'adaptive' ? '' : 'none';
+    }
+
     function updateLogoProximity(val) {
         logoProximity = parseFloat(val);
         markers.forEach(m => refreshMarkerVisibility(m));
@@ -1947,6 +2134,11 @@
     function saveProject() {
         const data = {
             style: currentStyle,
+            logoMode: logoMode,
+            logoMinSize: logoMinSize,
+            arrowBig: arrowBig,
+            logoZoomStart: logoZoomStart,
+            logoZoomFull: logoZoomFull,
             borders: {
                 codes: getCountryCodes().join(','),
                 color: document.getElementById('border-color').value,
@@ -1968,6 +2160,7 @@
                 label: m.label,
                 size: m.size || DEFAULT_LOGO_SIZE,
                 logoVisible: m.logoVisible,
+                big: !!m.big,
                 textVisible: m.textVisible,
                 pointVisible: m.pointVisible !== false,
                 groupIndex: m.groupId ? groups.findIndex(g => g.id === m.groupId) : -1
@@ -1988,6 +2181,14 @@
         reader.onload = (e) => {
             const data = JSON.parse(e.target.result);
             switchStyle(data.style);
+            // Mode d'affichage des logos (absent des anciens fichiers : on garde la préférence actuelle)
+            if (data.logoMode) { logoMode = data.logoMode === 'retro' ? 'retro' : 'adaptive'; }
+            if (data.logoMinSize >= 12 && data.logoMinSize <= 120) logoMinSize = data.logoMinSize;
+            if (typeof data.arrowBig === 'boolean') arrowBig = data.arrowBig;
+            { const ab = document.getElementById('arrow-big-btn'); if (ab) ab.classList.toggle('active', arrowBig); }
+            if (data.logoZoomFull >= 4 && data.logoZoomFull <= 16) logoZoomFull = data.logoZoomFull;
+            if (data.logoZoomStart >= 3 && data.logoZoomStart <= 16) logoZoomStart = data.logoZoomStart;
+            syncLogoModeUI();
 
             setCountrySelection(String(data.borders.codes || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean));
             document.getElementById('border-color').value = data.borders.color || '#ff0000';
@@ -2031,6 +2232,7 @@
                 addMarkerToMap(m.lngLat, m.img, m.label, m.size, gid);
                 const lastIdx = markers.length - 1;
                 markers[lastIdx].logoVisible = (m.logoVisible !== undefined) ? m.logoVisible : true;
+                markers[lastIdx].big = !!m.big;
                 markers[lastIdx].textVisible = (m.textVisible !== undefined) ? m.textVisible : true;
                 markers[lastIdx].pointVisible = (m.pointVisible !== undefined) ? m.pointVisible : true;
                 refreshMarkerVisibility(markers[lastIdx]);
@@ -2060,6 +2262,7 @@
             renderArrows();
 
             enhanceControls(); // curseurs/pastilles dont la valeur vient d'être restaurée
+            onArrowsChanged(); // logos reliés par une flèche -> en grand (si l'option est active)
             setTimeout(() => drawBorders(), 1000);
         };
         reader.readAsText(file);
@@ -2098,6 +2301,7 @@
         const g = document.getElementById('arw_' + id);
         if (g) g.remove();
         updateArrowUI();
+        onArrowsChanged();
     }
 
     function setArrowField(id, field, value) {
@@ -2130,6 +2334,7 @@
         const sumEl = document.getElementById('sum_' + arrowId);
         if (sumEl) sumEl.textContent = arrowSummary(a);
         rebuildArrowGroup(a);
+        onArrowsChanged();
         renderArrows();
     }
 
@@ -2428,10 +2633,14 @@
     })();
 
     map.on('move', renderArrows);
+    map.on('move', scheduleLayout);
+    map.on('resize', scheduleLayout);
     map.on('render', renderArrows);
     map.on('resize', renderArrows);
 
     buildCountryList();
+    { const ab = document.getElementById('arrow-big-btn'); if (ab) ab.classList.toggle('active', arrowBig); }
+    syncLogoModeUI();
     enhanceControls();
     updateSpeedLabel();
     updateGroupUI();
