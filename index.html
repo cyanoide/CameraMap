@@ -439,7 +439,17 @@
         }
         .group-divider:first-child { margin-top: 0; }
         .group-divider:hover { background: var(--item-hover); color: var(--text); }
-        .group-divider .gd-chevron { margin-left: auto; font-size: 8px; transition: transform .3s cubic-bezier(.2,.9,.25,1); }
+        /* En-tête de groupe : pastille (avec halo de sa couleur) · NOM · filet pointillé · compteur · chevron */
+        .group-divider .group-dot { box-shadow: 0 0 7px currentColor; border: none; }
+        .group-divider .gd-name { color: var(--text); font-size: 10px; letter-spacing: 2px; }
+        .group-divider .gd-leader { flex: 1; min-width: 12px; align-self: center; border-top: 1px dashed var(--border); margin: 0 4px; }
+        .gd-count, .group-count {
+            flex: none; padding: 2px 6px; border-radius: 2px;
+            font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; line-height: 1.2;
+            background: var(--item-selected); color: var(--accent);
+        }
+        .group-divider .gd-chevron { margin-left: 2px; }
+        .group-divider .gd-chevron { font-size: 8px; transition: transform .3s cubic-bezier(.2,.9,.25,1); }
         .group-divider.collapsed .gd-chevron { transform: rotate(-90deg); }
         @keyframes hudPulseSm { 0% { background: var(--item-selected); } 100% { background: transparent; } }
         .group-divider.pulse { animation: hudPulseSm .4s ease-out; }
@@ -831,6 +841,7 @@
 
     let _idSeq = 0;
     function nextId() { return 'id_' + Date.now().toString(36) + '_' + (_idSeq++).toString(36); }
+    function pad2(n) { return String(n).padStart(2, '0'); }
     function escHtml(s) { return String(s).replace(/</g, '&lt;'); }
     // Icône SVG (sprite <symbol id="i-NOM"> défini en haut du <body>) : suit la couleur du texte
     // Détails dépliés (ids de repères / de flèches) — en mémoire seulement
@@ -950,7 +961,7 @@
             <div class="list-item">
                 <input type="color" value="${g.color}" title="Couleur du point" oninput="setGroupColor('${g.id}', this.value)">
                 <input type="text" value="${escHtml(g.name)}" oninput="renameGroup('${g.id}', this.value)">
-                <span class="group-count" style="font-family:var(--font-mono); font-size:9px; color:var(--muted); flex:none;">${count}</span>
+                <span class="group-count">${pad2(count)}</span>
                 <div class="action-btns">
                     <button class="mini-btn toggle-btn ${g.visible ? '' : 'inactive'}" title="Afficher/Masquer le groupe" onclick="toggleGroupVisibility('${g.id}')">${ico(g.visible ? 'eye' : 'eye-off')}</button>
                     <button class="mini-btn" title="Basculer les logos du groupe" onclick="toggleGroupLogos('${g.id}')">${ico('image')}</button>
@@ -1406,14 +1417,16 @@
                 const g = getGroup(m.groupId);
                 const sectionKey = g ? g.id : '__none__';
                 const isCollapsed = collapsedMarkerSections.has(sectionKey);
+                const sectionTotal = markers.filter(mm => (mm.groupId || null) === (g ? g.id : null)).length;
 
                 const head = document.createElement('div');
                 head.className = 'group-divider' + (isCollapsed ? ' collapsed' : '');
                 head.dataset.section = sectionKey;
                 head.onclick = () => toggleMarkerGroupSection(sectionKey);
                 head.innerHTML = (g
-                    ? `<span class="group-dot" style="background:${g.color};"></span> ${escHtml(g.name)}`
-                    : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR};"></span> SANS GROUPE`) + `<span class="gd-chevron">${ico('chevron')}</span>`;
+                    ? `<span class="group-dot" style="background:${g.color}; color:${g.color};"></span><span class="gd-name">${escHtml(g.name)}</span>`
+                    : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR}; color:${UNGROUPED_DOT_COLOR};"></span><span class="gd-name">SANS GROUPE</span>`)
+                    + `<span class="gd-leader"></span><span class="gd-count" data-total="${sectionTotal}">${pad2(sectionTotal)}</span><span class="gd-chevron">${ico('chevron')}</span>`;
                 list.appendChild(head);
 
                 const sectionBody = document.createElement('div');
@@ -1501,7 +1514,12 @@
             const hide = !!q && matches === 0;
             body.style.display = hide ? 'none' : '';
             const head = list.querySelector('.group-divider[data-section="' + body.dataset.section + '"]');
-            if (head) head.style.display = hide ? 'none' : '';
+            if (head) {
+                head.style.display = hide ? 'none' : '';
+                // Pendant une recherche, le compteur du groupe passe en "résultats/total"
+                const cnt = head.querySelector('.gd-count');
+                if (cnt) cnt.textContent = q ? matches + '/' + cnt.dataset.total : pad2(cnt.dataset.total);
+            }
         });
         const empty = document.getElementById('marker-search-empty');
         if (empty) empty.style.display = (q && total === 0) ? '' : 'none';
@@ -1513,7 +1531,7 @@
             const g = groups[i];
             if (!g) return;
             const countEl = row.querySelector('.group-count');
-            if (countEl) countEl.textContent = markers.filter(m => m.groupId === g.id).length;
+            if (countEl) countEl.textContent = pad2(markers.filter(m => m.groupId === g.id).length);
         });
     }
 
