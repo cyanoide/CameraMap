@@ -321,19 +321,17 @@
         /* ============================================================
            MARQUEURS (sur la carte)
            ============================================================ */
-        .marker-back-container { width: 0; height: 0; overflow: visible; position: relative; z-index: 1 !important; }
-        .marker-dot { width: 12px; height: 12px; background: var(--accent, #00d2ff); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px var(--accent, #00d2ff); position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; }
-        /* Zone de survol élargie (invisible) autour du point, pour ne pas avoir à viser le pixel pile */
-        .marker-hover-zone { width: 64px; height: 64px; position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 11; cursor: pointer; }
+        /* UN seul marqueur Mapbox par repère (point + logo + texte) : Mapbox met à jour chaque marqueur HTML à chaque image
+           de la carte (~0,2 ms pièce), donc 2 marqueurs par repère doublaient le coût (mesuré : 43 ms/image pour 208 marqueurs). */
+        .marker-unit { width: 0; height: 0; overflow: visible; position: relative; pointer-events: none; }
         .marker-line { width: 2px; background: rgba(255,255,255,0.7); position: absolute; bottom: 0; left: 0; transform-origin: bottom center; display: none; pointer-events: none; z-index: 1; }
 
-        .marker-front-container { width: 0; height: 0; overflow: visible; position: relative; pointer-events: none; }
         /* Le logo et le texte sont positionnés en absolu depuis ce point (0,0) = le repère géographique,
            pour pouvoir dynamiquement mettre l'un ou l'autre "au plus près" (bottom:0) selon ce qui est
            affiché — voir refreshMarkerVisibility(). */
         .marker-content-wrapper { position: absolute; bottom: 0; left: 0; width: 0; height: 0; will-change: transform; transition: transform 0.1s linear; pointer-events: none; }
 
-        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, bottom .25s ease, width .18s ease, height .18s ease, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 20; pointer-events: none; }
+        .marker-image { width: 80px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white) drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white) drop-shadow(0 5px 15px rgba(0,0,0,0.6)); transition: opacity 0.3s, transform 0.2s cubic-bezier(0.3, 1.5, 0.5, 1); position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 20; pointer-events: none; }
         /* Les logos ne captent plus la souris (sinon un logo affiché par-dessus d'autres points les rendait
            impossibles à survoler) : le léger agrandissement se déclenche depuis la zone de survol du point. */
         .marker-image.lift { transform: translateX(-50%) scale(1.15); }
@@ -345,9 +343,86 @@
         /* pointer-events:none pendant l'aperçu : sinon le logo qui apparaît sous le curseur vole le survol de
            la zone du point -> mouseleave -> le logo disparaît -> mouseenter -> il réapparaît... = les flashs */
         /* Logo masqué par le mode adaptatif (pas la place) : vrai fondu (la visibilité ne bascule qu'après le fondu) */
+        /* Écho de localisation : lueur + anneaux flous + gerbe de particules carrées (façon NieR / cyanoide.github.io),
+           dans la couleur du groupe (--lc, posée en JS). Le conteneur est en (0,0) au centre du logo (ou du point). */
+        /* Onglets Pinpoints / Complet : la vue "Pinpoints" ne garde que la recherche + la liste */
+        .header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .view-gear { flex: none; width: 32px; height: 32px; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 2px; cursor: pointer; transition: .15s ease; }
+        button.view-gear > .ico { display: block; width: 18px; height: 18px; margin: 0; stroke-width: 1.2; transition: transform .5s cubic-bezier(.2,.9,.25,1); }
+        .view-gear:hover { border-color: var(--accent); background: var(--item-hover); box-shadow: 0 0 12px var(--accent-glow); }
+        body.view-full .view-gear { color: var(--accent); border-color: var(--border-strong); background: var(--item-selected); }
+        body.view-full button.view-gear > .ico { transform: rotate(45deg); }
+        /* Gabarit commun des contrôles de premier niveau : tous font la même hauteur (--ctl-h) */
+        #ui-panel { --ctl-h: 40px; }
+        /* Tout le texte de l'interface en MAJUSCULES (les champs/boutons/listes ne l'héritent pas par défaut) */
+        #ui-panel, #hud-bar { text-transform: uppercase; }
+        #ui-panel :is(input, select, textarea, button, option), #hud-bar button { text-transform: uppercase; }
+        /* Noms des pinpoints sur la carte aussi (mais pas les villes/rues du fond de carte, qui sont dans le canvas Mapbox) */
+        .marker-label { text-transform: uppercase; }
+        /* Vue pinpoints : typo plus grande, noms de groupes en gros capitales */
+        body.view-simple .group-divider .gd-name { font-size: 13px; letter-spacing: 2.5px; }
+        body.view-simple .group-divider .gd-count { font-size: 11px; }
+                body.view-simple .marker-item .mi-head input[type="text"] { font-size: 12px; letter-spacing: .6px; }
+                body.view-simple #marker-search { font-size: 13px; letter-spacing: 1.2px; }
+                        body.view-simple .marker-item .mi-thumb { width: 24px; height: 24px; }
+        .save-load-area button, #cg-logos .btn-grid button { height: var(--ctl-h); padding: 0 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        #marker-search { height: var(--ctl-h); margin-bottom: 0; }
+        .group-divider { height: var(--ctl-h); box-sizing: border-box; margin: 8px 0 6px; padding: 0 8px; background: var(--bg-field); border: 1px solid var(--border); gap: 8px; }
+        .group-divider:hover { border-color: var(--border-strong); }
+        .group-divider .gd-eye { margin: 0; }
+        #markers-list .mi-head { padding: 5px 8px; min-height: calc(var(--ctl-h) - 2px); box-sizing: border-box; }
+        .mi-head input[type="text"] { margin: 0; height: 28px; padding-top: 0; padding-bottom: 0; }
+        /* Vue pinpoints : interface en gris neutre ; seules les couleurs des groupes ressortent (--gc posé par fiche / groupe) */
+        body.view-simple.theme-light :is(#ui-panel, #hud-bar) { --accent: #5f5f5f; --accent-alt: #4a4a4a; --accent-glow: rgba(60,60,60,.12); --border: rgba(60,60,60,.22); --border-strong: rgba(60,60,60,.42); --item-hover: rgba(60,60,60,.07); --item-selected: rgba(60,60,60,.12); --track: rgba(60,60,60,.16); --shade: rgba(0,0,0,.08); }
+        body.view-simple.theme-dark :is(#ui-panel, #hud-bar) { --accent: #a4a49c; --accent-alt: #8a8a84; --accent-glow: rgba(200,200,190,.1); --border: rgba(200,200,190,.2); --border-strong: rgba(200,200,190,.4); --item-hover: rgba(200,200,190,.07); --item-selected: rgba(200,200,190,.12); --track: rgba(200,200,190,.16); }
+        /* Boutons du haut (Sauver / Ouvrir / Logos / Points) : texte et icône exactement du même gris, trait d'icône aussi fin que la typo */
+        body.view-simple .save-load-area button, body.view-simple #cg-logos .btn-grid button { color: var(--accent); }
+        body.view-simple .save-load-area button > .ico, body.view-simple #cg-logos .btn-grid button > .ico { stroke: currentColor; stroke-width: 1.25; opacity: .9; }
+        body.view-simple button.save { color: var(--accent); border-color: var(--border-strong); }
+        body.view-simple button.save:hover { background: var(--item-hover); border-color: var(--accent); box-shadow: none; }
+        body.view-simple .group-box, body.view-simple .group-divider, body.view-simple .marker-item { --gc: #5f5f5f; }
+        /* Vrai conteneur par groupe : cadre + fond teintés de la couleur du groupe, titre en en-tête, pinpoints à l'intérieur */
+        .group-box { display: contents; }
+        body.view-simple .group-box { display: block; margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--gc) 55%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--gc) 8%, var(--bg-field)); box-shadow: 0 0 14px color-mix(in srgb, var(--gc) 14%, transparent); }
+        body.view-simple .group-box .group-divider { margin: 0; border: none; background: transparent; border-radius: 3px; padding: 0 12px 0 18px; gap: 14px; }
+        body.view-simple .group-box .group-divider:hover { background: color-mix(in srgb, var(--gc) 10%, transparent); }
+        body.view-simple .group-box .group-divider:not(.collapsed) { border-bottom: 1px dashed color-mix(in srgb, var(--gc) 40%, transparent); border-radius: 3px 3px 0 0; }
+        body.view-simple .group-box .group-divider .group-dot { margin-right: 2px; }
+        body.view-simple .group-box .gsb-inner { padding-top: 0; }
+        body.view-simple .group-box .marker-item { margin: 8px 8px 0; border-color: color-mix(in srgb, var(--gc) 28%, var(--border)); }
+        body.view-simple .group-box .gsb-inner > .marker-item:last-child { margin-bottom: 8px; }
+        body.view-simple .group-divider .gd-count { color: var(--gc); background: color-mix(in srgb, var(--gc) 16%, transparent); }
+        body.view-simple .group-divider .gd-leader { border-top-color: color-mix(in srgb, var(--gc) 45%, transparent); }
+        body.view-simple .group-divider .gd-chevron { color: var(--gc); }
+        body.view-simple .group-divider .toggle-btn:not(.inactive),
+        body.view-simple .marker-item .toggle-btn:not(.inactive) { color: var(--gc); border-color: var(--gc); background: color-mix(in srgb, var(--gc) 14%, transparent); }
+        body.view-simple .marker-item .mini-btn:not(.toggle-btn):hover { color: var(--gc); border-color: var(--gc); }
+        body.view-simple .marker-item:hover { border-color: color-mix(in srgb, var(--gc) 55%, transparent); }
+        body.view-simple .control-group:not(#cg-logos) { display: none; }
+        body.view-simple #logos-h3 { display: none; }
+        body.view-simple #logos-body { grid-template-rows: 1fr !important; opacity: 1 !important; }
+        body.view-simple .adv-only { display: none !important; }
+        body.view-simple .marker-item .fold, body.view-simple .marker-item .fold-chev { display: none; }
+        body.view-simple .marker-item .mi-head { cursor: pointer; }
+        body.view-simple .marker-item .mi-head input[type="text"] { cursor: pointer; }
+        .gd-eye { margin: 0 2px 0 6px; flex: none; }
+        .locate-fx { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 40; }
+        .locate-fx > * { position: absolute; pointer-events: none; }
+        .lf-glow { border-radius: 50%; background: radial-gradient(circle, var(--lc) 0%, transparent 66%); filter: blur(8px); opacity: 0; animation: lfGlow 1.6s ease-out both; }
+        @keyframes lfGlow { 0% { transform: scale(.3); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
+        .lf-ring { border-radius: 50%; border: 2px solid var(--lc); filter: blur(1.6px); opacity: 0;
+            box-shadow: 0 0 10px var(--lc), inset 0 0 8px var(--lc); animation: lfRing 2s cubic-bezier(.15,.6,.3,1) both; }
+        @keyframes lfRing { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: .5; } 100% { transform: scale(2.8); opacity: 0; } }
+        .lf-p { background: var(--lc); box-shadow: 0 0 4px var(--lc); opacity: 0;
+            animation: lfP var(--t) cubic-bezier(.2,.6,.3,1) var(--dl) both; }
+        @keyframes lfP { 0% { transform: translate(0,0) scale(1); opacity: 0; } 20% { opacity: .55; } 100% { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
         .marker-image.fade-out { opacity: 0; visibility: hidden;
-            transition: opacity .35s ease, visibility 0s linear .35s, bottom .25s ease, width .18s ease, height .18s ease, transform .2s ease; }
-        .marker-image.fade-out.hover-peek { opacity: .92; visibility: visible; transition: opacity .2s ease, bottom .25s ease, width .18s ease, height .18s ease; }
+            transition: opacity .35s ease, visibility 0s linear .35s, transform .2s ease; }
+        .marker-image.fade-out.hover-peek { opacity: .92; visibility: visible; transition: opacity .2s ease; }
+        .map-moving .marker-label { transition: opacity .3s; }
+        /* Pendant un zoom la taille des logos change à chaque image : on allège le filtre (1 passe au lieu de 5) pour
+           ne pas re-rastériser 5 ombres floues × chaque logo à chaque image ; il revient dès la fin du zoom. */
+        .map-zooming .marker-image { filter: drop-shadow(0 0 1px rgba(255,255,255,.95)); }
         .marker-image.hidden.hover-peek { opacity: .92 !important; visibility: visible !important; pointer-events: none; }
         .display-none { display: none !important; }
 
@@ -647,6 +722,8 @@
     <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6"/></symbol>
     <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3.5M4 7l4-3.5L12 7"/></symbol>
     <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 3v9.5M4 9l4 3.5L12 9"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 16 16"><path d="M13.11 7.02 L14.85 7.17 L14.85 8.83 L13.11 8.98 A5.2 5.2 0 0 1 12.31 10.92 L13.43 12.26 L12.26 13.43 L10.92 12.31 A5.2 5.2 0 0 1 8.98 13.11 L8.83 14.85 L7.17 14.85 L7.02 13.11 A5.2 5.2 0 0 1 5.08 12.31 L3.74 13.43 L2.57 12.26 L3.69 10.92 A5.2 5.2 0 0 1 2.89 8.98 L1.15 8.83 L1.15 7.17 L2.89 7.02 A5.2 5.2 0 0 1 3.69 5.08 L2.57 3.74 L3.74 2.57 L5.08 3.69 A5.2 5.2 0 0 1 7.02 2.89 L7.17 1.15 L8.83 1.15 L8.98 2.89 A5.2 5.2 0 0 1 10.92 3.69 L12.26 2.57 L13.43 3.74 L12.31 5.08 A5.2 5.2 0 0 1 13.11 7.02 Z"/><circle cx="8" cy="8" r="2.1"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 16 16"><path d="M2 4.5h12M2 11.5h12"/><circle cx="10.5" cy="4.5" r="1.6"/><circle cx="5.5" cy="11.5" r="1.6"/></symbol>
     <symbol id="i-crosshair" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.2"/><path d="M8 1v3.3M8 11.7V15M1 8h3.3M11.7 8H15"/></symbol>
     <symbol id="i-play" viewBox="0 0 16 16"><path d="M4.5 3v10l8.5-5z" style="fill:currentColor"/></symbol>
     <symbol id="i-save" viewBox="0 0 16 16"><path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5M5 13.5v-4h6v4"/></symbol>
@@ -690,7 +767,11 @@
         <div class="header-subtitle">GATEWAY // MAPPING</div>
         <div class="header-line"></div>
     </div>
+    <div class="header-row">
     <div class="header-decorator">[ &#9679; &#9679; &#9679; &#9675; &#9675; &#9675; ]</div>
+
+    <button id="view-toggle" class="view-gear" onclick="toggleView()" title="Mode complet (toutes les options)" aria-label="Basculer entre la vue pinpoints et la vue complète"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg></button>
+    </div>
 
     <div class="save-load-area">
         <button class="save" onclick="saveProject()"><svg class="ico" aria-hidden="true"><use href="#i-save"/></svg> Sauver</button>
@@ -714,6 +795,9 @@
         <div class="btn-grid" style="margin-bottom:8px;">
             <button id="btn-sat" onclick="switchStyle('satellite')" class="primary"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg> Satellite</button>
             <button id="btn-plan" onclick="switchStyle('plan')"><svg class="ico" aria-hidden="true"><use href="#i-cube"/></svg> Plan 3D</button>
+        </div>
+        <div class="btn-grid" style="margin-bottom:8px;">
+            <button id="terrain-btn" class="active" onclick="toggleTerrain()" title="Relief du terrain en 3D. Le désactiver accélère beaucoup la carte quand il y a beaucoup de repères.">Relief 3D</button>
         </div>
         <div id="plan-colors" style="display:none; margin-bottom:8px;">
             <div class="color-row"><span>Sol</span> <input type="color" id="color-land" value="#e0e0e0" oninput="onLightColorInput('land',this.value); updateColors()"></div>
@@ -772,45 +856,45 @@
         </div></div>
     </div>
 
-    <div class="control-group">
-        <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Logos et Textes <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
+    <div class="control-group" id="cg-logos">
+        <h3 class="h3-toggle" id="logos-h3" onclick="toggleSection('logos')">Pinpoints <span class="h3-chevron"><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg></span></h3>
         <div id="logos-body" class="collapsible-body"><div class="cb-inner">
-            <div class="btn-grid" style="margin-bottom:6px;">
-                <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Logo</button>
+            <div class="btn-grid adv-only" style="margin-bottom:6px;">
+                <button onclick="document.getElementById('logo-upload').click()" style="border-style:dashed;">+ Ajouter Pinpoint</button>
             </div>
             <div class="btn-grid" style="margin-bottom:10px;">
-                <button onclick="toggleAllLogos()" title="Basculer le logo de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg> Tout</button>
-                <button onclick="toggleAllPoints()" title="Basculer le point de tous les repères"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Tout</button>
+                <button onclick="toggleAllLogos()" title="Afficher / masquer tous les logos"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg> Logos</button>
+                <button onclick="toggleAllPoints()" title="Afficher / masquer tous les points"><svg class="ico" aria-hidden="true"><use href="#i-pin"/></svg> Points</button>
             </div>
-            <div class="btn-grid" style="margin-bottom:6px;" title="Adaptatif : tailles réduites pour ne pas se chevaucher, logos masqués si pas la place. Rétro : comme avant (tailles fixes, logos repoussés).">
+            <div class="btn-grid adv-only" style="margin-bottom:6px;" title="Adaptatif : tailles réduites pour ne pas se chevaucher, logos masqués si pas la place. Rétro : comme avant (tailles fixes, logos repoussés).">
                 <button id="lm-adaptive" class="active" onclick="setLogoMode('adaptive')">Adaptatif</button>
                 <button id="lm-retro" onclick="setLogoMode('retro')">R&eacute;tro</button>
             </div>
-            <div class="color-row" id="logo-min-row" style="margin-bottom:6px;">
+            <div class="color-row adv-only" id="logo-min-row" style="margin-bottom:6px;">
                 <span>Taille mini</span>
                 <input type="range" id="logo-minsize" min="16" max="120" step="2" value="50"
                        oninput="updateLogoMinSize(this.value)" title="Taille minimale d'un logo à son apparition (côté le plus long du logo visible, marges transparentes exclues) ; il grossit ensuite avec le zoom jusqu'à sa taille réglée">
             </div>
-            <div class="color-row" id="logo-zoomstart-row" style="margin-bottom:6px;">
+            <div class="color-row adv-only" id="logo-zoomstart-row" style="margin-bottom:6px;">
                 <span>Zoom apparition</span>
                 <input type="range" id="logo-zoomstart" min="3" max="14" step="0.5" value="7.5"
                        oninput="updateLogoZoomStart(this.value)" title="Niveau de zoom à partir duquel les logos apparaissent (tous ensemble, en fondu) ; en dessous, tout reste en points">
             </div>
-            <div class="color-row" id="logo-zoom-row" style="margin-bottom:6px;">
+            <div class="color-row adv-only" id="logo-zoom-row" style="margin-bottom:6px;">
                 <span>Zoom taille max</span>
                 <input type="range" id="logo-zoomfull" min="4" max="16" step="0.5" value="11.5"
                        oninput="updateLogoZoomFull(this.value)" title="Niveau de zoom auquel les logos atteignent leur taille maximale (celle réglée sur chaque repère) ; ils grossissent progressivement avant, et ne grossissent plus après">
             </div>
-            <div class="color-row" style="margin-bottom:10px;">
+            <div class="color-row adv-only" style="margin-bottom:10px;">
                 <span>Proximité logo</span>
                 <input type="range" id="logo-proximity" min="0" max="0.6" step="0.02" value="0.22"
                        oninput="updateLogoProximity(this.value)" title="Rapproche le logo du point (il le chevauche davantage)">
             </div>
             <input type="file" id="logo-upload" accept="image/*" style="display:none;">
-            <input type="text" id="marker-search" placeholder="Rechercher un logo..." autocomplete="off"
+            <input type="text" id="marker-search" placeholder="Rechercher un pinpoint..." autocomplete="off"
                    oninput="filterMarkerList()"
                    onkeydown="if(event.key==='Escape'){ this.value=''; filterMarkerList(); }">
-            <div id="marker-search-empty" style="display:none; font-family:var(--font-mono); font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase;">Aucun logo trouv&eacute;</div>
+            <div id="marker-search-empty" style="display:none; font-family:var(--font-mono); font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase;">Aucun pinpoint trouv&eacute;</div>
             <div id="markers-list" style="margin-top:10px;"></div>
         </div></div>
     </div>
@@ -843,7 +927,6 @@
 
     <div class="footer-hud">
         <div class="line"></div>
-        <span>CLICK LOGO // GLISSER SUR LA CARTE</span>
         <span id="footer-status">SYS.VER 2.0 &mdash; 0 REP&Egrave;RES</span>
     </div>
 </div>
@@ -859,7 +942,6 @@
     let arrows = [];
     let groups = [];
     let pendingImage = null;
-    let physicsInterval = null;
     let borderDashed = false;
     let borderWidth = 4;
     let borderDashSize = 4;
@@ -887,6 +969,7 @@
     // On agit sur le DOM existant : les listes sont reconstruites entièrement à chaque changement.
     function ficheHeadClick(e, el, id) {
         if (e.target.closest('button, input, select, label')) return;
+        if (document.body.classList.contains('view-simple')) { focusMarker(markers.findIndex(m => m.id === id)); return; }
         toggleFiche(el, id);
     }
     function ico(name) { return '<svg class="ico" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
@@ -932,22 +1015,12 @@
         imgEl.style.bottom = imgBottom + 'px';
         txtEl.style.bottom = logoOn ? (imgBottom + size - padTop + 6) + 'px' : '0px';
 
-        // Le "point" (le pin coloré + sa zone de survol) a sa propre visibilité, indépendante du logo/texte
-        const backEl = m.markerBack.getElement();
+        // Le "point" a sa propre visibilité, indépendante du logo/texte (dessiné par la couche GL, cf. addDotLayers)
         const pointShown = (m.pointVisible !== false) && gv;
-        const dotEl = backEl.querySelector('.marker-dot');
-        const zoneEl = backEl.querySelector('.marker-hover-zone');
-        if (dotEl) dotEl.style.display = pointShown ? '' : 'none';
-        if (zoneEl) zoneEl.style.display = pointShown ? '' : 'none';
+        if (m._dvis !== pointShown) { m._dvis = pointShown; scheduleDots(); }
     }
 
-    function applyGroupColorToMarker(m) {
-        const dot = m.markerBack.getElement().querySelector('.marker-dot');
-        if (!dot) return;
-        const c = groupDotColor(m.groupId);
-        dot.style.background = c;
-        dot.style.boxShadow = '0 0 8px ' + c;
-    }
+    function applyGroupColorToMarker(m) { scheduleDots(); }
 
     function addGroup() {
         groups.push({ id: nextId(), name: 'Groupe ' + (groups.length + 1), color: currentAccent(), visible: true });
@@ -975,12 +1048,18 @@
         g.color = color;
         markers.forEach(m => { if (m.groupId === id) applyGroupColorToMarker(m); });
         document.querySelectorAll('#markers-list .group-dot[data-group="' + id + '"]').forEach(d => d.style.background = color);
+        const hd = document.querySelector('#markers-list .group-divider[data-section="' + id + '"]'); if (hd) { hd.style.setProperty('--gc', color); if (hd.parentElement) hd.parentElement.style.setProperty('--gc', color); }
+        markers.forEach(m => { if (m.groupId === id) { const it = document.querySelector('.marker-item[data-mid="' + m.id + '"]'); if (it) it.style.setProperty('--gc', color); } });
     }
 
     function toggleGroupVisibility(id) {
         const g = getGroup(id); if (!g) return;
         g.visible = !g.visible;
         markers.forEach(m => { if (m.groupId === id) refreshMarkerVisibility(m); });
+        document.querySelectorAll('.gd-eye[data-gid="' + id + '"]').forEach(b => {
+            b.classList.toggle('inactive', !g.visible);
+            b.innerHTML = ico(g.visible ? 'eye' : 'eye-off');
+        });
         updateGroupUI();
         scheduleLayout();
     }
@@ -1023,12 +1102,24 @@
     });
 
     map.on('style.load', () => {
+        addDotLayers();
         addTerrain();
         if(currentStyle === 'plan') applyPlanSettings();
         if (selectedCountries.size) drawBorders();
     });
 
+    // Relief 3D : le terrain Mapbox oblige à tester l'occlusion de CHAQUE marqueur HTML à chaque image
+    // (lecture de profondeur) et à charger les tuiles d'élévation : c'est le gros coût avec 100+ repères.
+    let terrainOn = true;
+    try { terrainOn = localStorage.getItem('cm-terrain') !== 'off'; } catch (e) {}
+    function toggleTerrain() {
+        terrainOn = !terrainOn;
+        try { localStorage.setItem('cm-terrain', terrainOn ? 'on' : 'off'); } catch (e) {}
+        const b = document.getElementById('terrain-btn'); if (b) b.classList.toggle('active', terrainOn);
+        addTerrain();
+    }
     function addTerrain() {
+        if (!terrainOn) { map.setTerrain(null); return; }
         if (!map.getSource('mapbox-dem')) {
             map.addSource('mapbox-dem', { 'type': 'raster-dem', 'url': 'mapbox://mapbox.mapbox-terrain-dem-v1', 'tileSize': 512, 'maxzoom': 14 });
         }
@@ -1162,13 +1253,28 @@
         const h3 = document.getElementById(id + '-h3');
         h3.classList.toggle('collapsed', collapsed);
         pulseHeader(h3);
-        try { localStorage.setItem('cm-collapsed-' + id, collapsed ? '1' : '0'); } catch(e) {}
+        try { localStorage.setItem('cm-open-' + id, collapsed ? '0' : '1'); } catch(e) {}
     }
+    // Menus fermés par défaut (clé cm-open-*, l'ancienne cm-collapsed-* est ignorée) ; l'état choisi est mémorisé
     ['nav', 'style', 'groups', 'logos', 'arrows', 'video'].forEach(id => {
-        let saved = '0';
-        try { saved = localStorage.getItem('cm-collapsed-' + id) || '0'; } catch(e) {}
-        if (saved === '1') toggleSection(id);
+        let open = '0';
+        try { open = localStorage.getItem('cm-open-' + id) || '0'; } catch(e) {}
+        if (open !== '1') {
+            document.getElementById(id + '-body').classList.add('collapsed');
+            document.getElementById(id + '-h3').classList.add('collapsed');
+        }
     });
+
+    // --- VUES : "Pinpoints" (simple, présentable) / "Complet" (toute l'interface) ---
+    function setView(v) {
+        v = v === 'full' ? 'full' : 'simple';
+        document.body.classList.toggle('view-simple', v === 'simple');
+        document.body.classList.toggle('view-full', v === 'full');
+        const t = document.getElementById('view-toggle');
+        if (t) t.title = v === 'full' ? 'Revenir à la vue pinpoints' : 'Mode complet (toutes les options)';
+    }
+    function toggleView() { setView(document.body.classList.contains('view-simple') ? 'full' : 'simple'); }
+    setView('simple'); // le site démarre toujours en vue pinpoints (la vue complète n'est pas mémorisée)
 
     // --- NAVIGATION ---
     document.getElementById('search-input').addEventListener('keydown', (e) => {
@@ -1187,109 +1293,196 @@
         } catch(e) { console.error(e); }
     }
 
-    // --- MOTEUR PHYSIQUE ---
-    function startPhysics() {
-        if (physicsInterval) clearInterval(physicsInterval);
-        physicsInterval = setInterval(() => {
-            // Hiérarchie Z-Index
-            markers.forEach((m, index) => {
-                if(m.markerFront.getElement()) {
-                    m.markerFront.getElement().style.zIndex = (10000 + index).toString();
-                }
-                if(m.markerBack.getElement()) m.markerBack.getElement().style.zIndex = "1";
-            });
+    // --- POINTS : couche GL (cercles) ---------------------------------------------------------------------------
+    // Les points sont dessinés dans le canvas de la carte, donc TOUJOURS sous tous les logos (qui sont des marqueurs
+    // HTML par-dessus le canvas) — c'était le défaut d'avoir fusionné point et logo dans un même marqueur HTML : le
+    // point d'un repère pouvait alors se dessiner par-dessus le logo d'un repère plus ancien. Bonus : zéro coût DOM.
+    // Le survol (zone de 32 px de rayon autour du point) passe par une couche de cercles invisibles + mousemove.
+    const DOT_SRC = 'marker-dots';
+    function dotsGeoJSON() {
+        return { type: 'FeatureCollection', features: markers
+            .filter(m => m.pointVisible !== false && groupIsVisible(m))
+            .map(m => { const ll = mapboxgl.LngLat.convert(m.lngLat); return { type: 'Feature', properties: { id: m.id, c: groupDotColor(m.groupId) }, geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] } }; }) };
+    }
+    function addDotLayers() {
+        if (!map.getSource(DOT_SRC)) map.addSource(DOT_SRC, { type: 'geojson', data: dotsGeoJSON() });
+        if (!map.getLayer('pts-dot')) map.addLayer({ id: 'pts-dot', type: 'circle', source: DOT_SRC, paint: { 'circle-radius': 4, 'circle-color': ['get', 'c'], 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' } });
+        if (!map.getLayer('pts-hit')) map.addLayer({ id: 'pts-hit', type: 'circle', source: DOT_SRC, paint: { 'circle-radius': 32, 'circle-opacity': 0, 'circle-color': '#000000' } });
+        syncGlowLayers(true);
+    }
+    // Halo des points : une couche "heatmap" par couleur (la rampe de couleur plafonne l'alpha :
+    // quand plusieurs halos se superposent, ils s'additionnent jusqu'à un seuil au lieu de saturer).
+    const GLOW_CAP = 0.66; // alpha max, atteint à forte densité (5+ halos superposés)
+    let glowKey = '';
+    function glowRamp(hex) {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); const n = m ? parseInt(m[1], 16) : 0x5f5f5f;
+        const rgb = (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255);
+        const a = v => 'rgba(' + rgb + ',' + (v * GLOW_CAP).toFixed(3) + ')'; // v = fraction du plafond
+        return ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(' + rgb + ',0)', 0.1, a(0.15), 0.5, a(0.52), 1, a(0.7), 2.5, a(0.88), 5, a(1)];
+    }
+    function glowId(hex) { return 'pts-glow-' + String(hex).replace(/[^0-9a-z]/gi, ''); }
+    function syncGlowLayers(force) {
+        const src = map.getSource(DOT_SRC); if (!src) return;
+        const cols = [...new Set(dotsGeoJSON().features.map(f => f.properties.c))].sort();
+        const key = cols.join('|');
+        if (!force && key === glowKey) return;
+        glowKey = key;
+        const want = new Set(cols.map(glowId));
+        (map.getStyle().layers || []).forEach(l => { if (l.id.startsWith('pts-glow-') && !want.has(l.id)) map.removeLayer(l.id); });
+        cols.forEach(c => {
+            const id = glowId(c);
+            if (map.getLayer(id)) return;
+            map.addLayer({ id, type: 'heatmap', source: DOT_SRC, filter: ['==', ['get', 'c'], c],
+                paint: { 'heatmap-radius': 16, 'heatmap-intensity': 1, 'heatmap-weight': 1, 'heatmap-opacity': 1, 'heatmap-color': glowRamp(c) } }, 'pts-dot');
+        });
+    }
+    function dotAnchorId() { const l = (map.getStyle().layers || []).find(l => l.id.startsWith('pts-')); return l ? l.id : undefined; }
+    let dotsQueued = false;
+    function scheduleDots() {
+        if (dotsQueued) return;
+        dotsQueued = true;
+        requestAnimationFrame(() => {
+            dotsQueued = false;
+            const s = map.getSource(DOT_SRC);
+            if (s) { s.setData(dotsGeoJSON()); syncGlowLayers(); }
+        });
+    }
+    // Survol des points : le marqueur dont le point est le plus proche du curseur (dans les 32 px)
+    let hoverDotId = null;
+    function setHoverDot(id) {
+        if (id === hoverDotId) return;
+        const prev = markers.find(m => m.id === hoverDotId); if (prev && prev._hoverLeave) prev._hoverLeave();
+        hoverDotId = id;
+        const cur = markers.find(m => m.id === id); if (cur && cur._hoverEnter) cur._hoverEnter();
+        if (!pendingImage) map.getCanvas().style.cursor = id ? 'pointer' : '';
+    }
+    map.on('mousemove', e => {
+        if (!map.getLayer('pts-hit')) return;
+        const f = map.queryRenderedFeatures(e.point, { layers: ['pts-hit'] });
+        let best = null, bd = Infinity;
+        f.forEach(ft => { const m = markers.find(mm => mm.id === ft.properties.id); if (!m) return; const p = map.project(m.lngLat); const d = Math.hypot(p.x - e.point.x, p.y - e.point.y); if (d < bd) { bd = d; best = m.id; } });
+        setHoverDot(best);
+    });
+    map.on('mouseout', () => setHoverDot(null));
+    map.on('dragstart', () => setHoverDot(null));
 
-            if (markers.length < 2) return;
+    // --- MOTEUR PHYSIQUE (anti-collision des logos) ---
+    // Optimisé pour des cartes de 100+ repères : boucle rAF qui DORT dès que tout est stabilisé (au repos : plus
+    // aucun calcul ni écriture DOM), qui n'écrit dans le DOM que ce qui a changé (transform quantifié à 0,1px, traits
+    // de liaison), avec collisions limitées aux logos visibles à l'écran et élagage par boîte englobante.
+    // Réveil : mouvement de caméra, changement de repère/taille/visibilité (wakePhysics()).
+    let physicsAwake = 0, physicsBudget = 0, physicsRunning = false;
+    // Réveil externe (caméra, repère modifié...) : au plus ~5 s de calcul après le dernier réveil, même si un amas
+    // sur-contraint ne se stabilise jamais tout à fait (sinon il scintillerait et écrirait dans le DOM à l'infini).
+    function wakePhysics() { physicsAwake = 90; physicsBudget = 300; if (!physicsRunning) { physicsRunning = true; requestAnimationFrame(physicsFrame); } }
+    function physicsFrame() {
+        physicsRunning = false;
+        if (physicsAwake <= 0) return;
+        physicsAwake = physicsTick() ? 90 : physicsAwake - 1;
+        if (--physicsBudget <= 0) physicsAwake = 0;
+        if (physicsAwake > 0) { physicsRunning = true; requestAnimationFrame(physicsFrame); }
+    }
+    // z-index = ordre dans `markers` (les derniers sont devant) ; appliqué seulement quand la liste change
+    function applyZOrder() {
+        markers.forEach((m, i) => { const el = m.markerFront.getElement(); if (el) el.style.zIndex = String(10000 + i); });
+    }
 
-            markers.forEach(m => {
-                const pos = map.project(m.lngLat);
-                m.x = pos.x; m.y = pos.y;
-                if (!m.forceX) { m.forceX = 0; m.forceY = 0; }
-                m.forceX *= 0.85; m.forceY *= 0.85;
-            });
+    function physicsTick() {
+        if (!markers.length) return false;
+        const c = map.getContainer(), W = c.clientWidth, H = c.clientHeight, MARG = 220;
+        const live = [];
+        for (const m of markers) {
+            const pos = map.project(m.lngLat);
+            m.x = pos.x; m.y = pos.y;
+            m.forceX = (m.forceX || 0) * 0.85; m.forceY = (m.forceY || 0) * 0.85;
+            m.onScr = pos.x > -MARG && pos.x < W + MARG && pos.y > -MARG && pos.y < H + MARG;
+            if (m.onScr && isMarkerActive(m)) live.push(m);
+        }
 
-            // Plusieurs passes de relaxation (Gauss-Seidel) : avec un seul passage, 3+ logos qui se
-            // chevauchent en même temps (typiquement en dézoomant, où beaucoup de repères se
-            // rapprochent à l'écran) ne convergent jamais et "se battent" d'une frame à l'autre.
-            // Plusieurs petites corrections successives, prenant en compte les précédentes dans la
-            // même frame, stabilisent le résultat.
-            const COLLISION_ITERATIONS = 4;
-            for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
-                for (let i = 0; i < markers.length; i++) {
-                    if(!isMarkerActive(markers[i])) continue;
-
-                    for (let j = i + 1; j < markers.length; j++) {
-                        if(!isMarkerActive(markers[j])) continue;
-
-                        let m1 = markers[i]; let m2 = markers[j];
-                        // Rayon de collision proportionnel à la taille des logos
-                        const RADIUS = ((m1.effSize || m1.size || DEFAULT_LOGO_SIZE) + (m2.effSize || m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
-                        let dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
-                        let dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
-                        let dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < RADIUS && dist > 0) {
-                            let overlap = RADIUS - dist;
-                            let angle = Math.atan2(dy, dx);
-                            // Un logo "Grand" est lourd : ce sont les autres qui s'écartent
-                            const w1 = isBig(m1) ? 0.15 : 1, w2 = isBig(m2) ? 0.15 : 1, tw = w1 + w2;
-                            const k = overlap / COLLISION_ITERATIONS;
-                            m1.forceX -= Math.cos(angle) * k * (w1 / tw); m1.forceY -= Math.sin(angle) * k * (w1 / tw);
-                            m2.forceX += Math.cos(angle) * k * (w2 / tw); m2.forceY += Math.sin(angle) * k * (w2 / tw);
-                        }
+        // Plusieurs passes de relaxation (Gauss-Seidel) : avec un seul passage, 3+ logos qui se chevauchent
+        // en même temps ne convergent jamais et "se battent" d'une frame à l'autre.
+        const COLLISION_ITERATIONS = 4;
+        for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
+            for (let i = 0; i < live.length; i++) {
+                const m1 = live[i];
+                for (let j = i + 1; j < live.length; j++) {
+                    const m2 = live[j];
+                    const RADIUS = ((m1.effSize || m1.size || DEFAULT_LOGO_SIZE) + (m2.effSize || m2.size || DEFAULT_LOGO_SIZE)) / 2 * 1.125;
+                    const dx = (m2.x + m2.forceX) - (m1.x + m1.forceX);
+                    if (dx >= RADIUS || dx <= -RADIUS) continue;
+                    const dy = (m2.y + m2.forceY) - (m1.y + m1.forceY);
+                    if (dy >= RADIUS || dy <= -RADIUS) continue;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < RADIUS && dist > 0) {
+                        const overlap = RADIUS - dist, angle = Math.atan2(dy, dx);
+                        // Un logo "Grand" est lourd : ce sont les autres qui s'écartent
+                        const w1 = isBig(m1) ? 0.15 : 1, w2 = isBig(m2) ? 0.15 : 1, tw = w1 + w2;
+                        const k = overlap / COLLISION_ITERATIONS;
+                        m1.forceX -= Math.cos(angle) * k * (w1 / tw); m1.forceY -= Math.sin(angle) * k * (w1 / tw);
+                        m2.forceX += Math.cos(angle) * k * (w2 / tw); m2.forceY += Math.sin(angle) * k * (w2 / tw);
                     }
                 }
             }
+        }
 
-            // Répulsion légère (best effort) vis-à-vis des flèches proches, pour limiter le
-            // chevauchement logo/ligne quand plusieurs flèches convergent sur un point voisin.
-            if (arrows.length) {
-                const AVOID_DIST = 50;
-                markers.forEach(m => {
-                    if (!isMarkerActive(m)) return;
-                    arrows.forEach(a => {
-                        if (!a.drawn) return;
-                        arrowPairs(a).forEach(([fm, tm]) => {
-                            if (fm === m || tm === m) return; // pas de répulsion vis-à-vis de sa propre flèche
-                            const s = anchorScreen(fm), e = anchorScreen(tm);
-                            const px = m.x + m.forceX, py = m.y + m.forceY;
-                            const dx = e.x - s.x, dy = e.y - s.y;
-                            const lenSq = dx * dx + dy * dy || 1;
-                            let t = ((px - s.x) * dx + (py - s.y) * dy) / lenSq;
-                            t = Math.max(0.08, Math.min(0.92, t)); // épargne les abords immédiats des points
-                            const cx = s.x + t * dx, cy = s.y + t * dy;
-                            const ddx = px - cx, ddy = py - cy;
-                            const dist = Math.hypot(ddx, ddy);
-                            if (dist < AVOID_DIST && dist > 0.5) {
-                                const push = (AVOID_DIST - dist) * 0.06;
-                                m.forceX += (ddx / dist) * push;
-                                m.forceY += (ddy / dist) * push;
-                            }
-                        });
-                    });
+        // Répulsion légère (best effort) vis-à-vis des flèches proches, pour limiter le
+        // chevauchement logo/ligne quand plusieurs flèches convergent sur un point voisin.
+        if (arrows.length && live.length) {
+            const AVOID_DIST = 50;
+            const segs = [];
+            arrows.forEach(a => { if (a.drawn) arrowPairs(a).forEach(([fm, tm]) => segs.push({ fm, tm, s: anchorScreen(fm), e: anchorScreen(tm) })); });
+            live.forEach(m => {
+                segs.forEach(sg => {
+                    if (sg.fm === m || sg.tm === m) return; // pas de répulsion vis-à-vis de sa propre flèche
+                    const s = sg.s, e = sg.e;
+                    const px = m.x + m.forceX, py = m.y + m.forceY;
+                    const dx = e.x - s.x, dy = e.y - s.y;
+                    const lenSq = dx * dx + dy * dy || 1;
+                    let tt = ((px - s.x) * dx + (py - s.y) * dy) / lenSq;
+                    tt = Math.max(0.08, Math.min(0.92, tt)); // épargne les abords immédiats des points
+                    const cx = s.x + tt * dx, cy = s.y + tt * dy;
+                    const ddx = px - cx, ddy = py - cy;
+                    const dist = Math.hypot(ddx, ddy);
+                    if (dist < AVOID_DIST && dist > 0.5) {
+                        const push = (AVOID_DIST - dist) * 0.06;
+                        m.forceX += (ddx / dist) * push;
+                        m.forceY += (ddy / dist) * push;
+                    }
                 });
-            }
-
-
-            markers.forEach(m => {
-                const contentWrapper = m.markerFront.getElement().querySelector('.marker-content-wrapper');
-                if (contentWrapper) contentWrapper.style.transform = `translate(${m.forceX}px, ${m.forceY}px)`;
-
-                const line = m.markerBack.getElement().querySelector('.marker-line');
-                const dist = Math.sqrt(m.forceX*m.forceX + m.forceY*m.forceY);
-                const isSomethingVisible = isMarkerActive(m);
-
-                if (dist > 5 && isSomethingVisible) {
-                    line.style.display = 'block';
-                    const angle = Math.atan2(m.forceY, m.forceX) * (180/Math.PI) - 90;
-                    line.style.height = `${dist}px`;
-                    line.style.transform = `rotate(${angle}deg)`;
-                } else {
-                    line.style.display = 'none';
-                }
             });
-        }, 1000/60);
+        }
+
+        // Écritures DOM : uniquement ce qui a changé de façon visible (hystérésis : sous ~0,4 px on ne touche à rien)
+        let moving = false;
+        for (const m of markers) {
+            if (Math.abs(m.forceX) < 0.05 && Math.abs(m.forceY) < 0.05) { m.forceX = 0; m.forceY = 0; }
+            if (m.onScr && (Math.abs(m.forceX - (m._pfx || 0)) > 0.25 || Math.abs(m.forceY - (m._pfy || 0)) > 0.25)) moving = true;
+            m._pfx = m.forceX; m._pfy = m.forceY;
+            const qx = Math.round(m.forceX * 10) / 10, qy = Math.round(m.forceY * 10) / 10;
+            const rest = !qx && !qy;
+            if (m._qx === undefined || (rest !== (!m._qx && !m._qy)) || Math.abs(qx - m._qx) >= 0.4 || Math.abs(qy - m._qy) >= 0.4) {
+                m._qx = qx; m._qy = qy;
+                const wrap = m._wrap || (m._wrap = m.markerFront.getElement().querySelector('.marker-content-wrapper'));
+                if (wrap) wrap.style.transform = rest ? '' : 'translate(' + qx + 'px, ' + qy + 'px)';
+            }
+            const dist = Math.sqrt(m._qx * m._qx + m._qy * m._qy);
+            const show = dist > 5 && isMarkerActive(m);
+            const ang = Math.atan2(m._qy, m._qx) * (180 / Math.PI);
+            if (show !== !!m._ls || (show && (Math.abs(dist - m._ld) >= 1 || Math.abs(ang - m._la) >= 2))) {
+                m._ls = show; m._ld = dist; m._la = ang;
+                const line = m._line || (m._line = m.markerBack.getElement().querySelector('.marker-line'));
+                if (line) {
+                    if (show) {
+                        line.style.display = 'block';
+                        line.style.height = dist + 'px';
+                        line.style.transform = 'rotate(' + (ang - 90) + 'deg)';
+                    } else line.style.display = 'none';
+                }
+            }
+        }
+        return moving;
     }
-    startPhysics();
+    wakePhysics();
 
     // --- GESTION MARQUEURS ---
     document.getElementById('logo-upload').addEventListener('change', (e) => {
@@ -1311,22 +1504,16 @@
     function addMarkerToMap(lngLat, imgUrl, labelText, size, groupId) {
         const logoSize = size || DEFAULT_LOGO_SIZE;
         const gid = groupId || null;
-        const dotColor = groupDotColor(gid);
 
-        const elBack = document.createElement('div');
-        elBack.className = 'marker-back-container';
-        elBack.innerHTML = `<div class="marker-dot" style="background:${dotColor}; box-shadow:0 0 8px ${dotColor};"></div><div class="marker-hover-zone"></div><div class="marker-line"></div>`;
-        const markerBack = new mapboxgl.Marker({ element: elBack, anchor: 'center' }).setLngLat(lngLat).addTo(map);
-
-        const elFront = document.createElement('div');
-        elFront.className = 'marker-front-container';
-        elFront.innerHTML = `
+        const el = document.createElement('div');
+        el.className = 'marker-unit';
+        el.innerHTML = `<div class="marker-line"></div>
             <div class="marker-content-wrapper">
-                <div class="marker-image" style="background-image:url('${imgUrl}'); width:${logoSize}px; height:${logoSize}px;"></div>
+                <div class="marker-image" style="${imgUrl.length < 150000 ? "background-image:url('" + imgUrl + "'); " : ''}width:${logoSize}px; height:${logoSize}px;"></div>
                 <div class="marker-label">${labelText}</div>
-            </div>
-        `;
-        const markerFront = new mapboxgl.Marker({ element: elFront, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
+            </div>`;
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat).addTo(map);
+        const markerBack = marker, markerFront = marker; // (anciens noms conservés : même marqueur)
 
         const markerObj = {
             id: nextId(),
@@ -1353,9 +1540,8 @@
         // viser, et c'est lui qui se déplace avec le logo quand la physique anti-collision l'écarte).
         // Un petit délai en sortie évite un clignotement quand la souris passe de l'un à l'autre.
         let hoverLeaveTimer = null;
-        const hoverZone = elBack.querySelector('.marker-hover-zone');
-        const labelEl = elFront.querySelector('.marker-label');
-        const imgEl = elFront.querySelector('.marker-image');
+        const labelEl = el.querySelector('.marker-label');
+        const imgEl = el.querySelector('.marker-image');
         const onHoverEnter = () => {
             clearTimeout(hoverLeaveTimer);
             imgEl.classList.add('lift');
@@ -1377,17 +1563,21 @@
                 refreshMarkerVisibility(markerObj); // remet le texte à sa vraie position de repos
             }, 180);
         };
-        hoverZone.addEventListener('mouseenter', onHoverEnter);
-        hoverZone.addEventListener('mouseleave', onHoverLeave);
+        markerObj._hoverEnter = onHoverEnter; markerObj._hoverLeave = onHoverLeave; // appelés par le survol des points (couche GL)
         labelEl.addEventListener('mouseenter', onHoverEnter);
         labelEl.addEventListener('mouseleave', onHoverLeave);
 
         markers.push(markerObj);
         refreshMarkerVisibility(markerObj);
+        scheduleDots();
         updateMarkerUI();
 
         // Détecte la vraie zone visible (non transparente) de l'image, puis repositionne une fois connue
-        analyzeLogoBounds(imgUrl, (leftFrac, topFrac, rightFrac, bottomFrac) => {
+        analyzeLogoBounds(imgUrl, (leftFrac, topFrac, rightFrac, bottomFrac, thumb) => {
+            markerObj.thumb = thumb;
+            imgEl.style.backgroundImage = "url('" + thumb + "')";
+            const li = document.querySelector('.marker-item[data-mid="' + markerObj.id + '"] .mi-thumb');
+            if (li) li.src = thumb;
             markerObj.visLeftFrac = leftFrac;
             markerObj.visRightFrac = rightFrac;
             markerObj.visTopFrac = topFrac;
@@ -1400,41 +1590,53 @@
     // non transparent, pour ignorer les marges transparentes dans les calculs de proximité au point
     // (un logo fin dans un carré très transparent ne doit pas sembler loin juste à cause du carré).
     // Best effort : en cas d'échec (image cross-origin illisible, etc.), on suppose 0-1 (pas de marge).
+    // Une seule décompression de l'image, sur un canvas réduit (≤ 400px de côté : un logo s'affiche à 220px max,
+    // même en écran 2x) : sert à détecter la zone visible ET à fabriquer une miniature légère pour l'affichage.
+    // Les images d'origine peuvent peser > 1 Mo : sans miniature, 100+ logos = des centaines de Mo décodés à
+    // chaque rafraîchissement. L'image d'origine reste intacte (m.img) pour la sauvegarde.
     function analyzeLogoBounds(imgUrl, callback) {
         const FULL = [0, 0, 1, 1];
         const img = new Image();
         img.onload = () => {
             try {
                 const w = img.naturalWidth, h = img.naturalHeight;
-                if (!w || !h) { callback(...FULL); return; }
+                if (!w || !h) { callback(...FULL, imgUrl); return; }
+                const sc0 = Math.min(1, 400 / Math.max(w, h));
+                const cw = Math.max(1, Math.round(w * sc0)), ch = Math.max(1, Math.round(h * sc0));
                 const canvas = document.createElement('canvas');
-                canvas.width = w; canvas.height = h;
+                canvas.width = cw; canvas.height = ch;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const data = ctx.getImageData(0, 0, w, h).data;
+                ctx.drawImage(img, 0, 0, cw, ch);
+                const data = ctx.getImageData(0, 0, cw, ch).data;
                 const ALPHA_THRESHOLD = 12;
-                let x0 = w, x1 = -1, y0 = h, y1 = -1;
-                for (let y = 0; y < h; y++) {
-                    const rowStart = y * w * 4;
-                    for (let x = 0; x < w; x++) {
+                let x0 = cw, x1 = -1, y0 = ch, y1 = -1;
+                for (let y = 0; y < ch; y++) {
+                    const rowStart = y * cw * 4;
+                    for (let x = 0; x < cw; x++) {
                         if (data[rowStart + x * 4 + 3] > ALPHA_THRESHOLD) {
                             if (x < x0) x0 = x; if (x > x1) x1 = x;
                             if (y < y0) y0 = y; y1 = y;
                         }
                     }
                 }
-                if (x1 < 0) { callback(...FULL); return; } // image entièrement transparente
+                let thumb = imgUrl;
+                if (sc0 < 1 || imgUrl.length > 80000) {
+                    const webp = canvas.toDataURL('image/webp', 0.92);
+                    const cand = webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
+                    if (cand.length < imgUrl.length) thumb = cand;
+                }
+                if (x1 < 0) { callback(...FULL, thumb); return; } // image entièrement transparente
                 // L'image est affichée en `contain` dans une boîte carrée : une image non carrée est
                 // "letterboxée" (marges vides en haut/bas ou à gauche/droite). On convertit donc la zone
                 // visible en fractions de la BOÎTE (0-1), marges transparentes ET letterbox compris.
-                const sc = Math.min(1 / w, 1 / h);
-                const dw = w * sc, dh = h * sc, ox = (1 - dw) / 2, oy = (1 - dh) / 2;
-                callback(ox + (x0 / w) * dw, oy + (y0 / h) * dh, ox + ((x1 + 1) / w) * dw, oy + ((y1 + 1) / h) * dh);
+                const sc = Math.min(1 / cw, 1 / ch);
+                const dw = cw * sc, dh = ch * sc, ox = (1 - dw) / 2, oy = (1 - dh) / 2;
+                callback(ox + (x0 / cw) * dw, oy + (y0 / ch) * dh, ox + ((x1 + 1) / cw) * dw, oy + ((y1 + 1) / ch) * dh, thumb);
             } catch (e) {
-                callback(...FULL);
+                callback(...FULL, imgUrl);
             }
         };
-        img.onerror = () => callback(...FULL);
+        img.onerror = () => callback(...FULL, imgUrl);
         img.src = imgUrl;
     }
 
@@ -1463,7 +1665,10 @@
         if (body) body.classList.toggle('collapsed', collapsed);
     }
 
+    let uiBatch = false; // vrai pendant un chargement de projet : on ne reconstruit la liste qu'une fois à la fin
     function updateMarkerUI() {
+        if (uiBatch) return;
+        applyZOrder();
         const list = document.getElementById('markers-list');
         list.innerHTML = '';
         let lastGroupId = '__none__';
@@ -1482,17 +1687,24 @@
                 const head = document.createElement('div');
                 head.className = 'group-divider' + (isCollapsed ? ' collapsed' : '');
                 head.dataset.section = sectionKey;
+                if (g) head.style.setProperty('--gc', g.color);
                 head.onclick = () => toggleMarkerGroupSection(sectionKey);
                 head.innerHTML = (g
                     ? `<span class="group-dot" style="background:${g.color}; color:${g.color};"></span><span class="gd-name">${escHtml(g.name)}</span>`
                     : `<span class="group-dot" style="background:${UNGROUPED_DOT_COLOR}; color:${UNGROUPED_DOT_COLOR};"></span><span class="gd-name">SANS GROUPE</span>`)
-                    + `<span class="gd-leader"></span><span class="gd-count" data-total="${sectionTotal}">${pad2(sectionTotal)}</span><span class="gd-chevron">${ico('chevron')}</span>`;
-                list.appendChild(head);
+                    + `<span class="gd-leader"></span><span class="gd-count" data-total="${sectionTotal}">${pad2(sectionTotal)}</span>`
+                    + (g ? `<button class="mini-btn gd-eye ${g.visible ? 'toggle-btn' : 'toggle-btn inactive'}" data-gid="${g.id}" onclick="event.stopPropagation(); toggleGroupVisibility('${g.id}')" title="Afficher / masquer ce groupe">${ico(g.visible ? 'eye' : 'eye-off')}</button>` : '')
+                    + `<span class="gd-chevron">${ico('chevron')}</span>`;
+                const box = document.createElement('div');
+                box.className = 'group-box';
+                if (g) box.style.setProperty('--gc', g.color);
+                list.appendChild(box);
+                box.appendChild(head);
 
                 const sectionBody = document.createElement('div');
                 sectionBody.className = 'group-section-body' + (isCollapsed ? ' collapsed' : '');
                 sectionBody.dataset.section = sectionKey;
-                list.appendChild(sectionBody);
+                box.appendChild(sectionBody);
 
                 currentBody = document.createElement('div');
                 currentBody.className = 'gsb-inner'; // les items sont ajoutés ici (cf. .gsb-inner)
@@ -1502,6 +1714,8 @@
             const div = document.createElement('div');
             const open = expandedFiches.has(m.id);
             div.className = 'list-item marker-item' + (open ? ' open' : '');
+            div.dataset.mid = m.id;
+            if (m.groupId) div.style.setProperty('--gc', groupDotColor(m.groupId));
 
             const logoClass = m.logoVisible ? 'toggle-btn' : 'toggle-btn inactive';
             const textClass = m.textVisible ? 'toggle-btn' : 'toggle-btn inactive';
@@ -1512,10 +1726,10 @@
             div.innerHTML = `
                 <div class="mi-head" onclick="ficheHeadClick(event, this.parentElement, '${m.id}')">
                     <span class="fold-chev">${ico('chevron')}</span>
-                    <img class="mi-thumb" src="${m.img}" alt="">
+                    <img class="mi-thumb" src="${m.thumb || (m.img.length < 150000 ? m.img : '')}" alt="">
                     <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
                     <div class="action-btns">
-                        <button class="mini-btn" onclick="focusMarker(${i})" title="Centrer la carte sur ce point">${ico('crosshair')}</button>
+                        <button class="mini-btn" onclick="focusMarker(${i})" title="Localiser : écho lumineux sur ce repère (la carte ne bouge pas)">${ico('crosshair')}</button>
                         <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">${ico('image')}</button>
                         <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">${ico('text')}</button>
                         <button class="mini-btn ${pointClass}" onclick="togglePoint(${i})" title="Afficher/Masquer le Point">${ico('pin')}</button>
@@ -1576,6 +1790,7 @@
             total += matches;
             const hide = !!q && matches === 0;
             body.style.display = hide ? 'none' : '';
+            const box = body.closest('.group-box'); if (box) box.style.display = hide ? 'none' : '';
             const head = list.querySelector('.group-divider[data-section="' + body.dataset.section + '"]');
             if (head) {
                 head.style.display = hide ? 'none' : '';
@@ -1619,10 +1834,47 @@
         updateMarkerUI();
     }
 
-    // Centre la carte sur ce point, sans dézoomer si on est déjà plus proche
+    // Localiser : un écho lumineux (lueur, anneaux flous, gerbe de particules) dans la couleur du groupe, centré sur le
+    // logo (ou sur le point si le logo est masqué). La caméra ne bouge PAS (pas de zoom/téléportation) ; seulement si le
+    // repère est hors de la zone visible, on le ramène au centre de la zone visible sans changer le zoom.
     function focusMarker(index) {
         const m = markers[index]; if (!m) return;
-        map.flyTo({ center: m.lngLat, zoom: Math.max(map.getZoom(), 13), essential: true });
+        const c = map.getContainer(), p = map.project(m.lngLat);
+        const ui = document.getElementById('ui-panel');
+        const left = ui && ui.style.display !== 'none' ? ui.getBoundingClientRect().right : 0;
+        const inView = p.x > left + 20 && p.x < c.clientWidth - 20 && p.y > 20 && p.y < c.clientHeight - 20;
+        if (inView) { locateEchoes(m); return; }
+        map.once('moveend', () => locateEchoes(m));
+        map.easeTo({ center: m.lngLat, offset: [left / 2, 0], duration: 700 });
+    }
+    function locateEchoes(m) {
+        if (m._culled) m.markerFront.addTo(map), m._culled = false;
+        const wrap = m.markerFront.getElement().querySelector('.marker-content-wrapper');
+        if (!wrap) return;
+        const size = m.effSize || m.size || DEFAULT_LOGO_SIZE;
+        const shown = wantLogo(m) && groupIsVisible(m) && !m.dc;
+        // centre du logo visible (en px par rapport au point), sinon le point lui-même
+        const vb = m.visBottomFrac != null ? m.visBottomFrac : 1, vt = m.visTopFrac || 0, vl = m.visLeftFrac || 0, vr = m.visRightFrac != null ? m.visRightFrac : 1;
+        const cy = shown ? -size * logoProximity - size * (1 - vb) + size * (1 - (vt + vb) / 2) : 0;
+        const cx = shown ? size * ((vl + vr) / 2 - 0.5) : 0;
+        const d = shown ? Math.max(44, size * Math.max(0.5, vr - vl, vb - vt)) : 40;
+        // couleur : celle du groupe ; sans groupe le point est gris (peu lisible en écho) -> couleur d'accent
+        let col = m.groupId && getGroup(m.groupId) ? getGroup(m.groupId).color : currentAccent();
+        const fx = document.createElement('div');
+        fx.className = 'locate-fx';
+        fx.style.cssText = 'left:' + cx + 'px;bottom:' + cy + 'px;--lc:' + col + ';';
+        const mk = (cls, w, h, extra) => { const e = document.createElement('div'); e.className = cls; e.style.cssText = 'width:' + w + 'px;height:' + h + 'px;left:' + (-w / 2) + 'px;bottom:' + (-h / 2) + 'px;' + (extra || ''); fx.appendChild(e); return e; };
+        mk('lf-glow', d * 1.3, d * 1.3);
+        for (let i = 0; i < 2; i++) mk('lf-ring', d, d, 'animation-delay:' + (i * 0.5) + 's;');
+        // quelques fines particules qui s'élèvent et s'effacent doucement
+        const n = 5;
+        for (let i = 0; i < n; i++) {
+            const a = (i + Math.random() * 0.8) / n * Math.PI * 2, r = d * (0.5 + Math.random() * 0.5);
+            mk('lf-p', 2, 2,
+                '--dx:' + (Math.cos(a) * r).toFixed(1) + 'px;--dy:' + (-Math.sin(a) * r).toFixed(1) + 'px;--t:' + (1.4 + Math.random() * 0.8).toFixed(2) + 's;--dl:' + (0.1 + Math.random() * 0.5).toFixed(2) + 's;');
+        }
+        wrap.appendChild(fx);
+        setTimeout(() => fx.remove(), 3200);
     }
 
     function updateLabel(index, val) {
@@ -1699,6 +1951,7 @@
 
     let layoutQueued = false;
     function scheduleLayout() {
+        wakePhysics();
         if (layoutQueued) return;
         layoutQueued = true;
         requestAnimationFrame(layoutLogos);
@@ -1708,8 +1961,21 @@
         const s = (m.effSize || m.size || DEFAULT_LOGO_SIZE) + 'px';
         if (imgEl.style.width !== s) { imgEl.style.width = s; imgEl.style.height = s; }
     }
+    // Les marqueurs très loin de l'écran sont retirés de la carte (donc plus mis à jour à chaque image) et remis
+    // quand on s'en approche : en vue régionale, la plupart des 100+ repères sont hors champ. Hystérésis 1,3×.
+    function cullMarkers() {
+        const c = map.getContainer(), W = c.clientWidth, H = c.clientHeight;
+        const near = Math.max(W, H) * 0.7, far = near * 1.3;
+        for (const m of markers) {
+            const p = map.project(m.lngLat);
+            const d = Math.max(p.x < 0 ? -p.x : (p.x > W ? p.x - W : 0), p.y < 0 ? -p.y : (p.y > H ? p.y - H : 0));
+            if (m._culled) { if (d < near) { m.markerFront.addTo(map); m._culled = false; } }
+            else if (d > far) { m.markerFront.remove(); m._culled = true; }
+        }
+    }
     function layoutLogos() {
         layoutQueued = false;
+        cullMarkers();
         const changed = [];
         const setState = (m, size, dc) => {
             if (m.effSize !== size || !!m.dc !== dc) { m.effSize = size; m.dc = dc; applyRenderSize(m); changed.push(m); }
@@ -1743,7 +2009,7 @@
         }
         // Tous les logos apparaissent (en fondu) ensemble à partir du zoom d'apparition, jamais seulement quelques-uns :
         // sous ce zoom tout est en points. Au-dessus, chacun s'affiche au moins à la taille mini — dans les amas
-        // serrés ils sont écartés par la répulsion (startPhysics) avec un trait vers leur point.
+        // serrés ils sont écartés par la répulsion (physicsTick) avec un trait vers leur point.
         const visible = map.getZoom() >= logoZoomStart;
         act.forEach(a => {
             if (a.big) { setState(a.m, a.max, false); return; } // "Grand" : taille maxi, toujours affiché
@@ -1819,6 +2085,7 @@
         markers[index].markerBack.remove();
         markers[index].markerFront.remove();
         markers.splice(index, 1);
+        scheduleDots();
         // Nettoie les flèches qui pointaient sur ce repère
         arrows.forEach(a => {
             a.from = a.from.filter(id => id !== removedId);
@@ -1861,7 +2128,7 @@
                 'line-dasharray': dashArray
             },
             'filter': ['in', 'iso_3166_1', ...codes]
-        });
+        }, dotAnchorId()); // sous les points
     }
 
     function updateBorderColor(color) {
@@ -2217,6 +2484,7 @@
             }
 
             markers.forEach(m => { m.markerBack.remove(); m.markerFront.remove(); }); markers = [];
+            scheduleDots();
             arrows = []; document.getElementById('arrow-overlay').innerHTML = '';
 
             // Groupes (absents des anciens fichiers -> tableau vide, rétro-compatible)
@@ -2227,7 +2495,8 @@
                 visible: (g.visible !== false)
             }));
 
-            data.markersData.forEach(m => {
+            uiBatch = true; // une seule reconstruction de la liste à la fin (sinon O(n²) : 1 rebuild par repère chargé)
+            try { data.markersData.forEach(m => {
                 const gid = (m.groupIndex != null && m.groupIndex >= 0 && groups[m.groupIndex]) ? groups[m.groupIndex].id : null;
                 addMarkerToMap(m.lngLat, m.img, m.label, m.size, gid);
                 const lastIdx = markers.length - 1;
@@ -2236,8 +2505,9 @@
                 markers[lastIdx].textVisible = (m.textVisible !== undefined) ? m.textVisible : true;
                 markers[lastIdx].pointVisible = (m.pointVisible !== undefined) ? m.pointVisible : true;
                 refreshMarkerVisibility(markers[lastIdx]);
-            });
+            }); } finally { uiBatch = false; }
             updateGroupUI();
+            collapsedMarkerSections = new Set(['__none__', ...groups.map(g => g.id)]);
             updateMarkerUI();
 
             keyframes = data.keyframes || []; updateKeys();
@@ -2632,12 +2902,17 @@
         requestAnimationFrame(arrowLoop);
     })();
 
-    map.on('move', renderArrows);
     map.on('move', scheduleLayout);
+    // Pendant un déplacement/zoom de la carte, pas de transitions CSS sur les logos : elles redémarreraient à chaque image
+    map.on('movestart', () => map.getContainer().classList.add('map-moving'));
+    map.on('moveend', () => map.getContainer().classList.remove('map-moving'));
+    map.on('zoomstart', () => map.getContainer().classList.add('map-zooming'));
+    map.on('zoomend', () => map.getContainer().classList.remove('map-zooming'));
     map.on('resize', scheduleLayout);
     map.on('render', renderArrows);
     map.on('resize', renderArrows);
 
+    { const tb = document.getElementById('terrain-btn'); if (tb) tb.classList.toggle('active', terrainOn); }
     buildCountryList();
     { const ab = document.getElementById('arrow-big-btn'); if (ab) ab.classList.toggle('active', arrowBig); }
     syncLogoModeUI();
