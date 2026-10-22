@@ -364,12 +364,13 @@
         body.view-simple .group-divider .gd-count { font-size: 11px; }
                 body.view-simple .marker-item .mi-head input[type="text"] { font-size: 12px; letter-spacing: .6px; }
                 body.view-simple #marker-search { font-size: 13px; letter-spacing: 1.2px; }
-                        body.view-simple .marker-item .mi-thumb { width: 24px; height: 24px; }
+                        body.view-simple .marker-item .mi-thumb { width: 30px; height: 30px; }
         .save-load-area button, #cg-logos .btn-grid button { height: var(--ctl-h); padding: 0 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         #marker-search { height: var(--ctl-h); margin-bottom: 0; }
         .group-divider { height: var(--ctl-h); box-sizing: border-box; margin: 8px 0 6px; padding: 0 8px; background: var(--bg-field); border: 1px solid var(--border); gap: 8px; }
         .group-divider:hover { border-color: var(--border-strong); }
         .group-divider .gd-eye { margin: 0; }
+        #markers-list .group-divider { padding-left: 18px; gap: 14px; }
         #markers-list .mi-head { padding: 5px 8px; min-height: calc(var(--ctl-h) - 2px); box-sizing: border-box; }
         .mi-head input[type="text"] { margin: 0; height: 28px; padding-top: 0; padding-bottom: 0; }
         /* Vue pinpoints : interface en gris neutre ; seules les couleurs des groupes ressortent (--gc posé par fiche / groupe) */
@@ -404,8 +405,9 @@
         body.view-simple .adv-only { display: none !important; }
         body.view-simple .marker-item .fold, body.view-simple .marker-item .fold-chev { display: none; }
         body.view-simple .marker-item .mi-head { cursor: pointer; }
-        body.view-simple .marker-item .mi-head input[type="text"] { cursor: pointer; }
+        body.view-simple .marker-item .mi-head input[type="text"] { cursor: pointer; pointer-events: none; user-select: none; }
         .gd-eye { margin: 0 2px 0 6px; flex: none; }
+        body.view-simple .marker-item .loc-btn { display: none; } /* vue pinpoints : un clic sur la ligne localise */
         .locate-fx { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 40; }
         .locate-fx > * { position: absolute; pointer-events: none; }
         .lf-glow { border-radius: 50%; background: radial-gradient(circle, var(--lc) 0%, transparent 66%); filter: blur(8px); opacity: 0; animation: lfGlow 1.6s ease-out both; }
@@ -466,6 +468,7 @@
         .mi-foot .mi-sp { flex: 1; }
         .mi-foot span:first-child { margin-right: 5px; }
         .list-item img { border: 1px solid var(--border); border-radius: 1px; }
+        .list-item img.mi-thumb { border: none; border-radius: 0; background: none; }
         .list-item input[type="text"] {
             margin: 0; border: none; background: transparent; font-weight: 600; width: 100%;
             color: var(--text); font-size: 12px; font-family: var(--font-main); letter-spacing: .5px;
@@ -1270,8 +1273,14 @@
         v = v === 'full' ? 'full' : 'simple';
         document.body.classList.toggle('view-simple', v === 'simple');
         document.body.classList.toggle('view-full', v === 'full');
+        syncNameEditable();
         const t = document.getElementById('view-toggle');
         if (t) t.title = v === 'full' ? 'Revenir à la vue pinpoints' : 'Mode complet (toutes les options)';
+    }
+    // Les noms des pinpoints ne s'éditent que dans la vue complète (en vue pinpoints : lecture seule, un clic localise)
+    function syncNameEditable() {
+        const ro = document.body.classList.contains('view-simple');
+        document.querySelectorAll('#markers-list .mi-head input[type="text"]').forEach(i => { i.readOnly = ro; i.tabIndex = ro ? -1 : 0; });
     }
     function toggleView() { setView(document.body.classList.contains('view-simple') ? 'full' : 'simple'); }
     setView('simple'); // le site démarre toujours en vue pinpoints (la vue complète n'est pas mémorisée)
@@ -1729,7 +1738,7 @@
                     <img class="mi-thumb" src="${m.thumb || (m.img.length < 150000 ? m.img : '')}" alt="">
                     <input type="text" value="${m.label}" oninput="updateLabel(${i}, this.value)">
                     <div class="action-btns">
-                        <button class="mini-btn" onclick="focusMarker(${i})" title="Localiser : écho lumineux sur ce repère (la carte ne bouge pas)">${ico('crosshair')}</button>
+                        <button class="mini-btn loc-btn" onclick="focusMarker(${i})" title="Localiser : écho lumineux sur ce repère (la carte ne bouge pas)">${ico('crosshair')}</button>
                         <button class="mini-btn ${logoClass}" onclick="toggleLogo(${i})" title="Afficher/Masquer Logo">${ico('image')}</button>
                         <button class="mini-btn ${textClass}" onclick="toggleText(${i})" title="Afficher/Masquer Texte">${ico('text')}</button>
                         <button class="mini-btn ${pointClass}" onclick="togglePoint(${i})" title="Afficher/Masquer le Point">${ico('pin')}</button>
@@ -1762,6 +1771,7 @@
         });
         const st = document.getElementById('footer-status');
         if (st) st.innerHTML = 'SYS.VER 2.0 &mdash; ' + markers.length + ' REP&Egrave;RE' + (markers.length > 1 ? 'S' : '');
+        syncNameEditable();
         filterMarkerList();
         scheduleLayout();
         updateGroupCounts();
